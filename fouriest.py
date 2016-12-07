@@ -85,20 +85,22 @@ def fouriest_find(num):
 
     max_fours = max_fours.reshape(-1, 2)
 
-    return max_fours
+    return max_fours, max_num_four
 
 
 def main():
-    num = 1000
+    num = 7
     
-    max_fours = fouriest_find(num)
+    max_fours, max_num_four = fouriest_find(num)
     
-    if len(max_fours) == 1:
+    if max_num_four == 0:
+        print('There are no fourier numbers for %d.' % num)
+    elif len(max_fours) == 1:
         print('The fouriest number for %d is %s in base %s.' % (num, max_fours[0][1], max_fours[0][0]))
     else:
-        print('There are multiple fouriest numbers for %d. They are:' % num)
+        print('There are multiple fouriest numbers for %d.\n\nThey are:' % num)
         for n in max_fours:
-            print('%3s in base %3s' % (n[1], n[0]))
+            print('%15s in base %5s' % (n[1], n[0]))
 
 
 if __name__ == "__main__":
