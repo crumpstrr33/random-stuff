@@ -50,13 +50,6 @@ class Ball(object):
                     self.speed_y * self.time_scale)
         self.pos = self.find_pos()
         
-        a, b, c, d = canvas.bbox(self.shape)
-        overlap = canvas.find_overlapping(a, b, c, d)
-        if len(overlap) > 1:     
-            self.collision(overlap)
-        elif self.speed_y < 0.1:
-            self.last_coll = NUM_BALLS + 1
-        
         self.speed_y += self.g * DT
 
         if self.pos[0] <= 0 and self.speed_x < 0:
@@ -71,32 +64,6 @@ class Ball(object):
         if self.pos[3] >= HEIGHT and self.speed_y > 0 :
             self.speed_y*= -(1 - np.sqrt(self.energy_loss))
             self.speed_x *= (1 - self.friction)
-
-
-    def collision(self, ol):
-        ball = BALL_LIST[ol[1] - 1]
-        if self.last_coll == ol[1]:
-            return 0
-
-        self.last_coll = ol[1]
-
-        sum_mass = self.mass + ball.mass
-        dif_mass = self.mass - ball.mass
-
-        new1_speed_x = (dif_mass) / (sum_mass) * self.speed_x + \
-                  (2 * ball.mass) / (sum_mass) * ball.speed_x
-        new2_speed_x = (-dif_mass) / (sum_mass) * ball.speed_x + \
-                   (2 * self.mass) / (sum_mass) * self.speed_x
-
-        new1_speed_y = (dif_mass) / (sum_mass) * self.speed_y + \
-                  (2 * ball.mass) / (sum_mass) * ball.speed_y
-        new2_speed_y = (-dif_mass) / (sum_mass) * ball.speed_y + \
-                   (2 * self.mass) / (sum_mass) * self.speed_y
-
-        self.speed_x = (1 - np.sqrt(self.energy_loss)) * new1_speed_x
-        self.speed_y = (1 - np.sqrt(self.energy_loss)) * new1_speed_y
-        ball.speed_x = (1 - np.sqrt(self.energy_loss)) * new2_speed_x
-        ball.speed_y = (1 - np.sqrt(self.energy_loss)) * new2_speed_y
 
 
     def calc_kinetic_energy(self):
