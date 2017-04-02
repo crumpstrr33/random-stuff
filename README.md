@@ -27,3 +27,8 @@ Allow the code to find numbers above base 62 with a digit above 62 if it is inde
 Various functions for an NxN matrix
 #### TODO
 Add cooler functions
+
+## imgur_pic_downloader.py
+You give this program the hash of an imgur album (those random characters the comes at the end of the URL). It will first try downloading by using the Imgur API. This requires a valid access token to do so. If the token is invalid, or no token is given (this is done with an .ini file), then the code will find the links of the images in the album from the HTML plain text.
+#### TODO
+Make sure the refresh token usage is correct (i.e. when the access token runs out, after a month, the code will use the refresh token to get a new access token and replace the old one in the .ini file)
