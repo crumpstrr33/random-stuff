@@ -16,12 +16,15 @@ import numpy as np
 DIGITS = list('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
 
-'''
-Converts base 10 number n to base b and returns as a string. Digits used above
-9 are taken from the list digits.
-'''
 def base10_to_base(n, b):
-    ## Find the most significant digit
+    '''
+    Converts a base 10 number to a different base.
+
+    Parameters:
+    n - Base 10 number to be converted
+    b - Base to convert n into
+    '''
+    ## Find the most significant digit in base b
     ## (e.g. For 10, 8 (2^3) is the most significant digit in base 2)
     for i in range(n):
         if n <= b**i:
@@ -57,10 +60,14 @@ def base10_to_base(n, b):
     return d
 
 
-'''
-Finds the base(s) and their resulting number(s) with the most number of 4's.
-'''
 def fouriest_find(num):
+    '''
+    Finds the base(s) and their resulting number(s) with the most number of
+    4's.
+
+    Parameters:
+    num - Base 10 number whose fouriest number will be found
+    '''
     max_num_four = 0
     max_fours = np.array([])
 
@@ -89,7 +96,7 @@ def fouriest_find(num):
 
 
 def main():
-    num = 7
+    num = 1111
     
     max_fours, max_num_four = fouriest_find(num)
     
