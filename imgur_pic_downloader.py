@@ -23,7 +23,6 @@ import os
 import ast
 import urllib
 import requests
-import numpy as np
 from configparser import ConfigParser
 try:
     from tqdm import tqdm
@@ -186,9 +185,8 @@ def _do_download(img, download_url, img_dir):
     # Create the url to download from
     url = download_url.format(*img)
 
-    # Download the iamge to a folder with a random number name
-    rand_name = str(np.random.randint(0, 1000000)).zfill(6)
-    urllib.request.urlretrieve(url, os.path.join(img_dir, rand_name) + img[1])
+    # Download the iamge to a folder with the imgur image name
+    urllib.request.urlretrieve(url, os.path.join(img_dir, img[0]) + img[1])
 
 
 def main():
