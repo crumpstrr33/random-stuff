@@ -37,7 +37,7 @@ from file_renaming import randomize_file_names
 
 def get_album_info(album_hash):
     """
-    Will obtain and return the image hashes along wit hte image file types by
+    Will obtain and return the image hashes along wit the image file types by
     requesting with the Imgur API where the user tokens are found in a local
     .ini file. If the .ini file isn't found or the code is unsuccessful,
     instead the image info will be obtained by get_image_hashes.
@@ -47,7 +47,7 @@ def get_album_info(album_hash):
     """
     # Checks if there is an .ini file
     if not os.path.exists('imgur_api_info.ini'):
-        raise IOError('ini file does not exist')
+        raise IOError('.ini file does not exist')
 
     # Gets info from .ini file
     config = ConfigParser()
@@ -56,12 +56,13 @@ def get_album_info(album_hash):
 
     url = 'https://api.imgur.com/3/album/{}/images'.format(album_hash)
 
-    try:
-        # Try to get links to images
-        auth = 'Bearer {}'.format(info['access_token'])
-        imgs = requests.get(url, headers={'Authorization': auth})
-    except:
-        # If access_token has expired, get a new one, then try again
+    # Get json for images
+    auth = 'Bearer {}'.format(info['access_token'])
+    imgs = requests.get(url, headers={'Authorization': auth})
+
+    # If error 403, then token has expired and if so, get a new one,
+    # then try again
+    if imgs.status_code == 403:
         print('Current access_token has expired, retrieving a new one...\n')
         new_token = requests.post('https://api.imgur.com/oauth2/token',
                                   data={'refresh_token': info['refresh_token'],
