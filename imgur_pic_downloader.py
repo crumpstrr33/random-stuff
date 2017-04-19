@@ -70,12 +70,12 @@ def get_album_info(album_hash):
                                         'grant_type': 'refresh_token'})
         new_access_token = new_token.json()['access_token']
 
+        # Rewrite the .ini file
         config.set('GENERAL', 'access_token', new_access_token)
         with open('imgur_api_info.ini', 'w') as ini_file:
             config.write(ini_file)
 
-        auth = 'Bearer {}'.format(new_access_token)
-        imgs = requests.get(url, headers={'Authentication': auth})
+        return ''
 
     # Who needs readability, returns a list of tuples: (img_hash, img_type)
     # img_type is usually '.jpg' or '.png'
@@ -196,6 +196,10 @@ def main():
     for n, album_hash in enumerate(album_hashes):
         try:
             img_list = get_album_info(album_hash)
+            # Use new access token
+            if not img_list:
+                main()
+
             if not n:
                 print('Using API to fetch image URLs.')
         except:
