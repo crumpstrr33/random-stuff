@@ -193,6 +193,19 @@ def main():
     album_hashes = ['VOtAB', 'g3nIx', 'g072M', 'N0D9y', '43qhk', 'QC9Sh']
     img_dir = 'C:\\Users\\Jacob\\Pictures\\Temp Downloaded'
 
+    # Check if user wants to download to nonempty dir
+    if not os.listdir(img_dir):
+        download = 'no'
+        while download == 'no':
+            download = input("The directory '{}' which is ".format(img_dir) +
+                             'where the images will be placed ' +
+                             'is not empty. Proceed anyway? [yes|no]\n')
+            if download.lower() in ['yes', 'y', 'yeah', 'yup', 'yea']:
+                break
+            elif download in ['no', 'n', 'nope', 'oh god no']:
+                print('Download aborted.')
+                return
+
     for n, album_hash in enumerate(album_hashes):
         try:
             img_list = get_album_info(album_hash)
