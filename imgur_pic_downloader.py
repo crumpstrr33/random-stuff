@@ -19,9 +19,9 @@ obtained, created a file in the same directory as this code, call it
 Otherwise, given an album hash, this program will download the album by
 parsing the HTML for the image URLs.
 """
+import urllib
 import os
 import ast
-import urllib
 import requests
 from configparser import ConfigParser
 try:
@@ -149,9 +149,9 @@ def download_images(img_list, img_dir, show_progress_bar=True, bar_len=50):
     Parameters:
     img_list - The list of image hashes for each image in the album
     img_dir - The directory into which the images will be downloaded
-    show_progress_bar - (optional) Will show a progress bar in the console if
-                        True, otherwise no progress bar
-    bar_len - (optional) The length of the progress bar
+    show_progress_bar - (default True) Will show a progress bar in the console
+                        if True, otherwise no progress bar
+    bar_len - (default 50) The length of the progress bar
     """
     download_url = 'https://i.imgur.com/{}{}'
 
@@ -160,7 +160,7 @@ def download_images(img_list, img_dir, show_progress_bar=True, bar_len=50):
             for img in tqdm(img_list, desc='Progress', ncols=2*bar_len):
                 _do_download(img, download_url, img_dir)
         else:
-            bar = "\rProgress: {:>3}%[{}]"
+            bar_format = "\rProgress: {:>3}%[{}]"
             il_len = len(img_list)
 
             for n, img in enumerate(img_list):
@@ -168,7 +168,7 @@ def download_images(img_list, img_dir, show_progress_bar=True, bar_len=50):
                 percent = (n + 1) / il_len
                 completed = round(bar_len * percent)
 
-                print(bar.format(int(100 * percent),
+                print(bar_format.format(int(100 * percent),
                       '#' * completed + '-' * (bar_len - completed)), end='')
                 sys.stdout.flush()
 
@@ -194,7 +194,7 @@ def main():
     img_dir = 'C:\\Users\\Jacob\\Pictures\\Temp Downloaded'
 
     # Check if user wants to download to nonempty dir
-    if not os.listdir(img_dir):
+    if os.listdir(img_dir):
         download = 'no'
         while download == 'no':
             download = input("The directory '{}' which is ".format(img_dir) +
@@ -215,7 +215,7 @@ def main():
 
             if not n:
                 print('Using API to fetch image URLs.')
-        except:
+        except (IOError, KeyError):
             if not n:
                 print('Not using API to fetch image URLs.')
 
@@ -223,7 +223,7 @@ def main():
             img_list = get_image_hashes(imgur_text)
 
         print('\nFound {} images from {}.'.format(
-                        len(img_list), 'https://imgur.com/a/' + album_hash))
+              len(img_list), 'https://imgur.com/a/' + album_hash))
 
         download_images(img_list, img_dir, bar_len=50)
 
