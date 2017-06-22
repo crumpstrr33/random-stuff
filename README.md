@@ -1,10 +1,14 @@
 # Random Stuff
 These are just random bits of code based on ideas and random curiosity. Mostly done for learning purposeful and such. They are each described below.
 
+## bftree.py
+Will print out a breadth-first tree of a given list. Any branch value can be given along with some other small changeable options.
+
 ## bouncing.py
-A program that uses the tkinter module to simulate bouncing squares and collision detection and response using conservation of energy and momentum.
+Uses the tkinter module to simulate bouncing squares and collision detection and response using conservation of energy and momentum.
 #### TODO
 Will add accurate collision
+
 Maybe a rotational aspect in the future
 
 ## file_renaming.py
