@@ -81,3 +81,10 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
 
     if return_as_list:
         return rows
+
+
+if __name__ == "__main__":
+    import random
+    arr = [random.randint(0, 100) for _ in range(35)]
+
+    make_tree(arr, 3)
