@@ -2,7 +2,7 @@
 These are just random bits of code based on ideas and random curiosity. Mostly done for learning purposeful and such. They are each described below.
 
 ## bftree.py
-Will print out a breadth-first tree of a given list. Any branch value can be given along with some other small changeable options.
+Will print out a breadth-first tree of a given list. Any branch factor can be given along with some other changeable options.
 
 ## bouncing.py
 Uses the tkinter module to simulate bouncing squares and collision detection and response using conservation of energy and momentum.
@@ -33,7 +33,7 @@ Various functions for an NxN matrix
 Add cooler functions
 
 ## imgur_pic_downloader.py
-You give this program the hash of an imgur album (those random characters the comes at the end of the URL). It will first try downloading by using the Imgur API. This requires a valid access token to do so. If the token is invalid, or no token is given (this is done with an .ini file), it will first try to obtain a new access token using the refresh token from the .ini file and retry. If this fails, then the code will find the links of the images in the album from the HTML plain text which is probably much less reliable. It will then use file_renaming.py to rename the files. This can be omitted by removing the import and the randomize_file_names method call in the main function.
+You give this program the hash of an imgur album (those random characters the comes at the end of the URL). It will first try downloading by using the Imgur API. This requires a valid access token to do so. If the token is invalid, or no token is given (this is done with an .ini file), it will first try to obtain a new access token using the refresh token from the .ini file and retry. If this fails, then the code will find the links of the images in the album from the HTML plain text which is probably much less reliable.
 
 ## regions_in_grid.py
 Given a 2D array of 1's and 0's it will return a list of each region where a region is defined as a group of 1's that are connected either in the four cardinal directions or in the four diagonal directions. Each row of the array does not need to be the same length.
