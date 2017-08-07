@@ -1,72 +1,3 @@
-def move_up(heap, num):
-    """
-    Appends num to the end of a heap list and moves it up the heap.
-    """
-    heap.append(num)
-
-    while True:
-        # Node info, compare f_cost and h_cost at the same time
-        ind = heap.index(num)
-        val = num
-
-        # If index is 0, can't move up anymore
-        if not ind:
-            return
-
-        # The position above node n is int half of (n - 1)
-        up_ind = (ind - 1) // 2
-        up_val = heap[up_ind]
-
-        # Compare values
-        if val < up_val:
-            _swap(ind, up_ind)
-        else:
-            return
-
-
-def move_down(heap):
-        """
-        Sorts the top node down the heap.
-        """
-        # Don't run if open_set is empty
-        if not len(heap):
-            return
-
-        val = heap[0]
-
-        while True:
-            ind = heap.index(val)
-
-            left_ind = 2 * ind + 1
-            right_ind = left_ind + 1
-
-            # Check if left node exists, if not we are finished
-            if len(heap) > left_ind:
-                left_val = heap[left_ind]
-            else:
-                return
-
-            # Check if right node exists
-            right_val = heap[right_ind] if len(heap) > right_ind else None
-
-            # Swap with either left or right node
-            if (left_val < val) and \
-               (left_val <= right_val or right_val is None):
-                _swap(heap, ind, left_ind)
-            elif (right_val is not None) and \
-                 (right_val < val):
-                _swap(heap, ind, right_ind)
-            else:
-                return
-
-
-def _swap(open_set, i, j):
-    """
-    Swaps elements at i and j in open_set
-    """
-    open_set[i], open_set[j] = open_set[j], open_set[i]
-
-
 def make_tree(tree, branch_factor, filler=' ', cage=True,
               return_as_list=False, print_out=True):
     '''
@@ -132,7 +63,7 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
         for num in range(column_iter):
             shift = num + sum([branch_factor**r for r in range(row_num)])
             row += '|' + spaces_per_node + \
-                str(tree[shift]).rjust(num_digits) + spaces_per_node
+                str(tree[shift]).rjust(num_digits, filler) + spaces_per_node
 
         row += '|'
         if print_out:
