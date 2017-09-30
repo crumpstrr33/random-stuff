@@ -102,16 +102,21 @@ def decypher_num(cyph_num):
     return word
 
 
-def calc_every_comb(*words, wta, keep_cyphers, replace):
+def calc_every_comb(*words, wta, keep_cyphers, duplicate):
     '''
     Calculates the resulting word from every combination of 2 words from the
     words given and then prints the data out. Words are tested with themselves.
 
     Parameters:
-    words - Args parameters of every word to use.
+    words - Args parameters of every word to use
+    wta - The number of words to sum for each sum
+    keep_cyphers - Boolean of whether to print the cypher numbers along with
+                   the words or not
+    duplicate - Boolean of whether the combination of words to use should
+                have duplicates (combination with replace vs. without)
     '''
     wta = int(wta)
-    if replace:
+    if duplicate:
         comb = combinations_with_replacement(words, wta)
     else:
         comb = combinations(words, wta)
@@ -162,26 +167,30 @@ if __name__ == "__main__":
     parser.add_argument('-n', metavar='num', help='Number of words to sum')
     parser.add_argument('-c', metavar='keep_cypher', help='Yes/True will ' +
                         'print the cypher numbers. No/False will not.')
-    parser.add_argument('-r', metavar='duplicates', help='Yes/True will' +
+    parser.add_argument('-d', metavar='duplicates', help='Yes/True will' +
                         'allow duplicates for summing. No/False will not.')
     parser.add_argument('words', help='Words to sum', nargs='*')
     args = parser.parse_args()
 
     # Check to make sure -c flag is correct
-    if args.c is None or args.c.lower() in ['yes', 'y', 'true', 't']:
-        KEEP_CYPHERS = True
-    elif args.c.lower() in ['no', 'n', 'false', 'f']:
+    if args.c is None or args.c.lower() in ['no', 'n', 'false', 'f']:
         KEEP_CYPHERS = False
+    elif args.c.lower() in ['yes', 'y', 'true', 't']:
+        KEEP_CYPHERS = True
     else:
         raise Exception('Unknown keyword for -c flag: {}'.format(args.c))
 
     # Check to make sure -r flag is correct
-    if args.r is None or args.r.lower() in ['yes', 'y', 'true', 't']:
-        REPLACE = True
-    elif args.c.lower() in ['no', 'n', 'false', 'f']:
-        REPLACE = False
+    if args.d is None or args.d.lower() in ['yes', 'y', 'true', 't']:
+        DUPLICATE = True
+    elif args.d.lower() in ['no', 'n', 'false', 'f']:
+        DUPLICATE = False
     else:
         raise Exception('Unknown keyword for -r flag: {}'.format(args.c))
 
+    if not DUPLICATE and len(args.words) < int(args.n or 2):
+        raise Exception('The number of words must be at least equal to the ' +
+                        'number of words being summed if no replacement.')
+
     calc_every_comb(*args.words, wta=args.n or 2,
-                    keep_cyphers=KEEP_CYPHERS, replace=REPLACE)
+                    keep_cyphers=KEEP_CYPHERS, duplicate=DUPLICATE)
