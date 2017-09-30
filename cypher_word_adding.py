@@ -9,14 +9,12 @@ possibilities that are available and print them all out.
 from itertools import product, combinations_with_replacement
 import sys
 
-import numpy as np
 
-
-CYPHER = np.array([['a', 'b', 'c', 'd', 'e'],
-                   ['f', 'g', 'h', 'i', 'j'],
-                   ['k', 'l', 'm', 'n', 'o'],
-                   ['p', 'q', 'r', 's', 't'],
-                   ['u', 'v', 'w', 'x', '(yz)']])
+CYPHER = [['a', 'b', 'c', 'd', 'e'],
+          ['f', 'g', 'h', 'i', 'j'],
+          ['k', 'l', 'm', 'n', 'o'],
+          ['p', 'q', 'r', 's', 't'],
+          ['u', 'v', 'w', 'x', '(yz)']]
 
 
 def let_to_num(let):
@@ -27,10 +25,9 @@ def let_to_num(let):
     Parameters:
     let - Letter to convert to number
     '''
-    if let in {'y', 'z'}:
-        let = '(yz)'
-    # Add 1 since we index start at 1 as 'human beings'
-    return ''.join(map(str, np.array(np.where(CYPHER == let))[:, 0] + 1))
+    for coord in product(range(5), range(5)):
+        if let in CYPHER[coord]:
+            return ''.join(map(lambda x: str(x + 1), coord))
 
 
 def words_to_cyph_nums(*words):
