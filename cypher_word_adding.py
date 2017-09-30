@@ -26,7 +26,7 @@ def let_to_num(let):
     let - Letter to convert to number
     '''
     for coord in product(range(5), range(5)):
-        if let in CYPHER[coord]:
+        if let in CYPHER[coord[0]][coord[1]]:
             return ''.join(map(lambda x: str(x + 1), coord))
 
 
@@ -79,8 +79,9 @@ def decypher_num(cyph_num):
     word = ''
 
     for num in cypher_lets:
+        row, col = map(lambda x: int(x) - 1, num)
         # Subtract that 1 we add cause... 'human beings'
-        word += CYPHER[tuple(map(lambda x: int(x) - 1, num))]
+        word += CYPHER[row][col]
 
     return word
 
