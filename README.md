@@ -41,3 +41,9 @@ Given a 2D array of 1's and 0's it will return a list of each region where a reg
 Add an option for periodic boundaries
 Generalize to nD arrays
 Allow the option for specifying what elements should be considered part of a group (can be converted to 1's and 0's easily with numpy though)
+
+## cypher_word_adding.py
+Inspired by a cypher used in an after-school program as a fun/thoughtful challenge for the kids, this code will convert words into number using the cypher (as described in the code) and add them together and return the resulting word from the sum.
+#### TODO
+Allow the adding of an arbitrary number of words instead of just two
+Optimize it a little better
