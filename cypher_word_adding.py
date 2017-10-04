@@ -4,8 +4,8 @@ A programmatic approach to the cypher played with after school.
 For each letter, transform it into a two digit number based on a square cypher
 (The number of rows must equal the number of columns). This code will add
 together two numbers together and print the new word formed (with a little
-editing with a modulo for digits out of range on the cypher). Pass it n words
-and it will try the nChoose2 that are available and print them all out.
+editing with a modulo for digits out of range on the cypher). Pass it N words
+and it will try the NChooseM that are available and print them all out.
 '''
 from itertools import product, combinations_with_replacement, combinations
 from argparse import ArgumentParser
@@ -46,10 +46,9 @@ def words_to_cyph_nums(*words):
     words - Args of words to convert to a number
     '''
     cyph_nums = ['' for _ in range(len(words))]
-
     for n, word in enumerate(words):
         for char in word:
-            let = let_to_num(char)
+            let = let_to_num(char.lower())
             if let is None:
                 raise Exception("Character '{}' ".format(let) +
                                 "in word '{}' not found in cypher".format(word))
@@ -102,7 +101,7 @@ def decypher_num(cyph_num):
     return word
 
 
-def calc_every_comb(*words, wta, keep_cyphers, duplicate):
+def calc_every_comb(*words, wta, keep_cyphers, duplicate, check_against=False):
     '''
     Calculates the resulting word from every combination of 2 words from the
     words given and then prints the data out. Words are tested with themselves.
@@ -114,6 +113,8 @@ def calc_every_comb(*words, wta, keep_cyphers, duplicate):
                    the words or not
     duplicate - Boolean of whether the combination of words to use should
                 have duplicates (combination with replace vs. without)
+    check_against - (default False) If true it will only print out the sums
+                    that create a word found in words
     '''
     wta = int(wta)
     if duplicate:
@@ -154,12 +155,19 @@ def calc_every_comb(*words, wta, keep_cyphers, duplicate):
     print(row_bar.format(*['-' * fdict['w']] * wta, '-' * fdict['n'],
                          *['-' * fdict['c']] * (wta + 1)))
     for n, word_comb in enumerate(word_combs):
+        if check_against and new_words[n] not in set(words):
+                continue
         print(row.format(*word_comb, new_words[n], *cyph_nums_list[n],
                          sum_nums_list[n], **fdict))
     print(row_ext)
 
 
-if __name__ == "__main__":
+def input_words_main():
+    '''
+    Give it words to sum from command line. The -n flag it how many words to
+    sum. The -c flag is whether to print the cypher numbers along with the
+    words. And the -d flag is whether to allow summing duplicates of a word.
+    '''
     parser = ArgumentParser(description='Cypher words and return the word of' +
                             'their sums. Give space-separated words to sum. ' +
                             'By default, will print the sum of 2 words at a ' +
@@ -194,3 +202,24 @@ if __name__ == "__main__":
 
     calc_every_comb(*args.words, wta=args.n or 2,
                     keep_cyphers=KEEP_CYPHERS, duplicate=DUPLICATE)
+
+
+def input_file_main():
+    '''
+    Reads from file given on command-line.
+    '''
+    parser = ArgumentParser(description='Cypher words and return the word of' +
+                            'their sums. Give file name of folder with space-' +
+                            'separated words.')
+    parser.add_argument('file', help='File of words to sum')
+    args = parser.parse_args()
+
+    with open(args.file, 'r') as f:
+        words = f.read().split()
+
+    calc_every_comb(*words, wta=2, keep_cyphers=True, duplicate=True,
+                    check_against=True)
+
+
+if __name__ == "__main__":
+    input_file_main()
