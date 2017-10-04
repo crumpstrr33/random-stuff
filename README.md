@@ -45,5 +45,6 @@ Allow the option for specifying what elements should be considered part of a gro
 ## cypher_word_adding.py
 Inspired by a cypher used in an after-school program as a fun/thoughtful challenge for the kids, this code will convert words into number using the cypher (as described in the code) and add them together and return the resulting word from the sum.
 #### TODO
-Allow the adding of an arbitrary number of words instead of just two
-Optimize it a little better
+Allow cypher grids bigger than 10x10
+Allow 3 or maybe 4 dimensional grids
+Allow non-square grids or grids with rows with varying lengths
