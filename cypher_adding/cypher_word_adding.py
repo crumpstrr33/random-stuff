@@ -162,6 +162,20 @@ def calc_every_comb(*words, wta, keep_cyphers, duplicate, check_match):
     print(row_ext)
 
 
+def print_cypher():
+    '''
+    Prints out cypher.
+    '''
+    max_len = len(max(sum(CYPHER, []), key=len))
+    cols = map(lambda x: str(x).rjust(max_len), range(1, len(CYPHER) + 1))
+    print(' |' + '|'.join(cols) + '|')
+    for n, row in enumerate(CYPHER):
+        print(n + 1, end='|')
+        for let in row:
+            print((max_len - len(let)) * ' ' + let, end='|')
+        print()
+
+
 def input_words_main():
     '''
     Give it words to sum from command line either by typing the words at the
@@ -171,10 +185,8 @@ def input_words_main():
     flag is whether to allow summing duplicates of a word. And the -m flag will
     only print out sums that are a word found in the list of words given.
     '''
-    parser = ArgumentParser(description='Cypher words and return the word of' +
-                            'their sums. Give space-separated words to sum. ' +
-                            'By default, will print the sum of 2 words at a ' +
-                            'time and print the cypher numbers.')
+    parser = ArgumentParser(description='Cypher words and return the word ' +
+                            'created by their sum.')
     parser.add_argument('-f', '--file', help='Text file with space-separated ' +
                         'words to sum. If words are also given along with a ' +
                         'text file, these words will be considered along ' +
@@ -184,24 +196,29 @@ def input_words_main():
                         'cypher numbers along with the words')
     parser.add_argument('-d', action='store_true', help='Will allow for ' +
                         'duplicates of words to be summed')
-    parser.add_argument('-m', action='store_true', help='Will only print' +
+    parser.add_argument('-m', action='store_true', help='Will only print ' +
                         'a sum if that sum matches a word in the given set ' +
                         'of words.')
+    parser.add_argument('--print-cypher', action='store_true', help='Will ' +
+                        'print out the cypher being used')
     parser.add_argument('words', help='Words to sum', nargs='*')
     args = parser.parse_args()
 
-    if args.file is not None:
-        with open(args.file, 'r') as f:
-            args.words += f.read().split()
-    args.words = list(set(args.words))
-    args.words.sort()
+    if args.print_cypher:
+        print_cypher()
+    else:
+        if args.file is not None:
+            with open(args.file, 'r') as f:
+                args.words += f.read().split()
+        args.words = list(set(args.words))
+        args.words.sort()
 
-    if not args.d and len(args.words) < int(args.num or 2):
-        raise Exception('The number of words must be at least equal to the ' +
-                        'number of words being summed if no replacement.')
+        if not args.d and len(args.words) < int(args.num or 2):
+            raise Exception('The number of words must be at least equal to the ' +
+                            'number of words being summed if no replacement.')
 
-    calc_every_comb(*args.words, wta=args.num or 2, keep_cyphers=args.c,
-                    duplicate=args.d, check_match=args.m)
+        calc_every_comb(*args.words, wta=args.num or 2, keep_cyphers=args.c,
+                        duplicate=args.d, check_match=args.m)
 
 
 if __name__ == "__main__":
