@@ -48,3 +48,8 @@ Inspired by a cypher used in an after-school program as a fun/thoughtful challen
 Allow cypher grids bigger than 10x10
 Allow 3 or maybe 4 dimensional grids
 Allow non-square grids or grids with rows with varying lengths
+
+## calnder
+A functional calender. Not much more. Takes into account leap years.
+#### TODO
+Actually be able to do something with it
