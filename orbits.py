@@ -36,9 +36,9 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.colors as mpl_colors
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow
-from PyQt5.QtGui import QPainter, QColor, QPainterPath, QPixmap
-from PyQt5.QtCore import Qt, QTimer, QRectF
+from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt5.QtGui import QPainter, QColor, QPixmap
+from PyQt5.QtCore import Qt, QTimer
 
 
 class Orbit:
