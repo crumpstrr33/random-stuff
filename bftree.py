@@ -87,4 +87,5 @@ if __name__ == "__main__":
     import random
     arr = [random.randint(0, 100) for _ in range(35)]
 
-    make_tree(arr, 3)
+    make_tree(tree=arr, branch_factor=3, filler=' ', cage=True,
+        return_as_list=True, print_out=True)
