@@ -32,7 +32,6 @@ effects of every object on object i. And it is analogous for the y-component
 The simulation is ran in Qt and that's pretty much it!
 """
 import sys
-from collections import defaultdict
 
 import numpy as np
 import matplotlib.colors as mpl_colors
@@ -51,10 +50,11 @@ class Orbit:
     objs - An arbitrary number of objects' data given as dictionaries of their
            masses, velocities and positions. For example, one object could be:
 
-                {'mass': 10, 'pos': [1, 5], 'vel':[3, 0]}
+                {'mass': 10, 'pos': [1, 5], 'vel':[3, 0], 'show_path':True}
 
            where the lists are for the x- and y-directions of the position
-           and velocity vectors.
+           and velocity vectors and `show_path` is a boolean (defauled to
+           True) that determines whether the orbit path is shown.
     G - (default 1) The value for the graviational constant found in Newton's
         equation for the force from gravity
     dt - (default 0.01) The time interval, how much time passes between each
@@ -64,11 +64,16 @@ class Orbit:
     def __init__(self, *objs, G=None, dt=None):
         self.G = G or 1
         self.dt = dt or 0.00005
+        self.offset = [0, 0]
+
+        # Index of dict that is to have orbits centered on
+        try:
+            self.cind = objs.index(list(filter(lambda x: x['centered'] is True, objs))[0])
+        except IndexError:
+            self.cind = None
 
         # Turn into numpy arrays with dimension (no. objects, no. dimensions)
-        self.pos = []
-        self.vel = []
-        self.mass = []
+        self.pos, self.vel, self.mass = [], [], []
         for obj in objs:
             self.pos.append(obj['pos'])
             self.vel.append(obj['vel'])
@@ -138,6 +143,8 @@ class Orbit:
                 self.vel[oind][dind] += acc[oind][dind] * self.dt
                 self.pos[oind][dind] += self.vel[oind][dind] * self.dt
 
+        self.offset = self.pos[self.cind] if self.cind is not None else [0, 0]
+
     def iterate(self):
         """
         Goes through one 'iteration' where each takes a total time of dt. Since
@@ -160,7 +167,13 @@ class Window(QWidget):
     def __init__(self, *objs, default_color='black', G=None, dt=None, width=500,
                  height=500, obj_size=5, parent=None):
         super().__init__(parent=parent)
-        objs = [defaultdict(str, obj) for obj in objs]
+        # Fills in the blanks in the list of dict due to default values
+        # `show_path` defaults to `True`, `centered` defaults to `False`
+        # and `color` to `black`
+        objs = [dict(obj,
+            show_path=obj.get('show_path', True),
+            centered=obj.get('centered', False),
+            color=obj.get('color', 'black')) for obj in objs]
         self.setWindowTitle('Newtonian Orbital Dynamics')
 
         self.setGeometry(300, 200, width, height)
@@ -176,7 +189,11 @@ class Window(QWidget):
         self.foreground.colors = self.colors
 
         # Makes a list of whether or not to show the path for each object
-        self.background.show_paths = [obj['show_path'] for obj in objs]
+        # Check to make sure every input for `show_path` is either a boolean or an empty string
+        osp = [obj['show_path'] for obj in objs]
+        if not len(list(filter(lambda x: type(x)==bool, osp))) == len(osp):
+            raise Exception('Unknown data type for show_path parameter.')
+        self.background.show_paths = osp
 
         # Update every N milliseconds
         self.timer = QTimer()
@@ -215,6 +232,7 @@ class Background(QPixmap):
         # QPixmap doesn't have a paintEvent, this is just a mocked-up version
         painter = QPainter(self)
         for n, orbit in enumerate(self.orbital_prev):
+            # Use `False` explicitly sign empty string is considered `True`
             if self.show_paths[n] is not False:
                 color = QColor(mpl_colors.cnames[self.colors[n]])
                 painter.setPen(color)
@@ -273,8 +291,8 @@ class Foreground(QWidget):
             painter.setBrush(color)
 
             # Scale x and y distances by the size of the window
-            x = (obj[0] / self.scale) * (self.width/2 - 1) + self.width/2
-            y = (obj[1] / self.scale) * (self.height/2 - 1) + self.height/2
+            x = ((obj[0] - self.orbit.offset[0]) / self.scale) * (self.width/2 - 1) + self.width/2
+            y = ((obj[1] - self.orbit.offset[1]) / self.scale) * (self.height/2 - 1) + self.height/2
 
             # Record points to add to bg for path (and centers on circles)
             self.orbital_prev.append((x + self.obj_size/2, y + self.obj_size/2))
@@ -284,8 +302,8 @@ class Foreground(QWidget):
 
 if __name__ == "__main__":
     width, height, obj_size = 800, 800, 10
-    objs = [{'mass': 100.0, 'pos': [-0.1, -0.1], 'vel': [ 8,  -8], 'color': 'firebrick', 'show_path': True},
-            {'mass': 100.0, 'pos': [ 0.1,  0.1], 'vel': [-8,   8], 'color': 'indianred', 'show_path': True},
+    objs = [{'mass': 100.0, 'pos': [-0.1, -0.1], 'vel': [ 8,  -8], 'color': 'firebrick', 'show_path': False, 'centered': True},
+            {'mass': 100.0, 'pos': [ 0.1,  0.1], 'vel': [-8,   8], 'color': 'indianred', 'show_path': False},
             {'mass':   0.1, 'pos': [ 0.5,  0.0], 'vel': [ 0, -18], 'color': 'oldlace'},
             {'mass':   0.2, 'pos': [ 0.0,  0.6], 'vel': [20,   0], 'color': 'mediumpurple'},
             {'mass':   1.2, 'pos': [ 1.0,  1.0], 'vel': [ 6,  -5], 'color': 'darkkhaki'},
@@ -299,6 +317,12 @@ if __name__ == "__main__":
     window = Window(*objs, G=G, dt=dt, width=width, height=height, obj_size=obj_size)
     window.show()
     sys.exit(app.exec_())
+
+    # Testing system
+    # objs = [{'mass': 100, 'pos': [0, 0], 'vel': [0, 0], 'color':'orange', 'centered': True},
+    #         {'mass':   3, 'pos': [5, 0], 'vel': [0, 2], 'color':'grey'}]
+    # G = 1
+    # dt = 0.003
 
     # The Solar System
     # objs = [{'mass': 1.99e30, 'pos': [0, 0], 'vel': [0, 0], 'color': 'red'}, # Sun
