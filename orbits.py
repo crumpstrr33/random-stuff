@@ -33,11 +33,11 @@ The simulation is ran in Qt and that's pretty much it!
 """
 import sys
 
-import numpy as np
 import matplotlib.colors as mpl_colors
-from PyQt5.QtWidgets import QApplication, QWidget
-from PyQt5.QtGui import QPainter, QColor, QPixmap
+import numpy as np
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QColor, QPainter, QPixmap
+from PyQt5.QtWidgets import QApplication, QWidget
 
 
 class Orbit:
@@ -48,13 +48,23 @@ class Orbit:
 
     Parameters:
     objs - An arbitrary number of objects' data given as dictionaries of their
-           masses, velocities and positions. For example, one object could be:
+           masses, velocities and positions and other details:
 
-                {'mass': 10, 'pos': [1, 5], 'vel':[3, 0], 'show_path':True}
+                {'mass': 10, 'pos': [1, 5], 'vel':[3, 0], 'show_path':True,
+                 'centered':True, 'color': 'green', 'line_color': blue'}
 
-           where the lists are for the x- and y-directions of the position
-           and velocity vectors and `show_path` is a boolean (defauled to
-           True) that determines whether the orbit path is shown.
+            mass - The mass of the object
+            pos - The (x,y) starting position of the object
+            vel - The (x,y) starting velocity of the object
+            show_path - (default True) Shows the line path of the object if
+                True, otherwise doesn't display the line
+            centered - (default False) Will center the image on the object, i.e.
+                the object won't move. If more than one object has this keyword
+                set to True, then it will be centered on their average position
+            color - (default black) The color of the ball
+            line_color - (default `color`) The color of the path line, defaults
+                to whatever color the ball is
+
     G - (default 1) The value for the graviational constant found in Newton's
         equation for the force from gravity
     dt - (default 0.01) The time interval, how much time passes between each
@@ -66,30 +76,41 @@ class Orbit:
         self.dt = dt or 0.00005
         self.offset = [0, 0]
 
-        # Index of dict that is to have orbits centered on
+        # Index of dicts that is to have orbits centered on
         try:
-            self.cind = objs.index(list(filter(lambda x: x['centered'] is True, objs))[0])
+            self.cinds = [
+                objs.index(obj)
+                for obj in list(filter(lambda x: x["centered"] is True, objs))
+            ]
         except IndexError:
-            self.cind = None
+            self.cinds = None
 
         # Turn into numpy arrays with dimension (no. objects, no. dimensions)
         self.pos, self.vel, self.mass = [], [], []
         for obj in objs:
-            self.pos.append(obj['pos'])
-            self.vel.append(obj['vel'])
-            self.mass.append(obj['mass'])
-        self.pos = np.array(self.pos, dtype='float64')
-        self.vel = np.array(self.vel, dtype='float64')
+            self.pos.append(obj["pos"])
+            self.vel.append(obj["vel"])
+            self.mass.append(obj["mass"])
+        self.pos = np.array(self.pos, dtype="float64")
+        self.vel = np.array(self.vel, dtype="float64")
         self.mass = np.array(self.mass)
+        self.dim = len(self.pos[0])
 
         # Make sure consistent number of objects between pos and vel
         if len(self.pos) != len(self.vel):
-            raise Exception('Different number of objects for position and velocity lists.')
+            raise Exception(
+                "Different number of objects for position and velocity lists."
+            )
         self.num_objects = len(self.pos)
 
         # Make sure consistent number of dimensions across pos and vel
-        if not all([len(self.pos[obj]) == len(self.vel[obj]) for obj in range(self.num_objects)]):
-            raise Exception('Different number of dimensions for velocity and position.')
+        if not all(
+            [
+                len(self.pos[obj]) == len(self.vel[obj])
+                for obj in range(self.num_objects)
+            ]
+        ):
+            raise Exception("Different number of dimensions for velocity and position.")
         self.num_dims = len(self.pos[0])
 
     def find_new_acc(self):
@@ -118,15 +139,26 @@ class Orbit:
                     continue
 
                 # Find r^3 as shown above in the equation
-                dist_cubed = np.math.sqrt(sum(
-                    [(self.pos[oind][dim] - self.pos[eind][dim])**2
-                        for dim in range(self.num_dims)]))**3
+                dist_cubed = (
+                    np.math.sqrt(
+                        sum(
+                            [
+                                (self.pos[oind][dim] - self.pos[eind][dim]) ** 2
+                                for dim in range(self.num_dims)
+                            ]
+                        )
+                    )
+                    ** 3
+                )
 
                 # Iterate through each dimension
                 for dind in range(self.num_dims):
                     # Tack on total for each accerleration component
-                    tot_acc[dind] += self.mass[eind] * \
-                      (self.pos[oind][dind] - self.pos[eind][dind]) / dist_cubed
+                    tot_acc[dind] += (
+                        self.mass[eind]
+                        * (self.pos[oind][dind] - self.pos[eind][dind])
+                        / dist_cubed
+                    )
 
             # Multiply on the constants to the sum
             new_acc[oind] = [-self.G * acc for acc in tot_acc]
@@ -143,7 +175,23 @@ class Orbit:
                 self.vel[oind][dind] += acc[oind][dind] * self.dt
                 self.pos[oind][dind] += self.vel[oind][dind] * self.dt
 
-        self.offset = self.pos[self.cind] if self.cind is not None else [0, 0]
+        if self.cinds is not None:
+            # Takes the average of each coordinate of objs with centered=True so that the centered point is the average
+            # of all of them. For example, if there is a binary system, you can center on the COM of the binary.
+            self.offset = list(
+                map(
+                    lambda x: sum(x) / len(x),
+                    [
+                        [
+                            coord[ind]
+                            for coord in [self.pos[cind] for cind in self.cinds]
+                        ]
+                        for ind in range(self.dim)
+                    ],
+                )
+            )
+        else:
+            self.offset = self.dim * [0]
 
     def iterate(self):
         """
@@ -164,35 +212,59 @@ class Window(QWidget):
     default_color (default black) - Only one not passed on. The default color
                                     of the objects if no color is specified.
     """
-    def __init__(self, *objs, default_color='black', G=None, dt=None, width=500,
-                 height=500, obj_size=5, parent=None):
+
+    def __init__(
+        self,
+        *objs,
+        default_color="black",
+        G=None,
+        dt=None,
+        width=500,
+        height=500,
+        obj_size=5,
+        parent=None
+    ):
         super().__init__(parent=parent)
         # Fills in the blanks in the list of dict due to default values
         # `show_path` defaults to `True`, `centered` defaults to `False`
         # and `color` to `black`
-        objs = [dict(obj,
-            show_path=obj.get('show_path', True),
-            centered=obj.get('centered', False),
-            color=obj.get('color', 'black')) for obj in objs]
-        self.setWindowTitle('Newtonian Orbital Dynamics')
+        objs = [
+            dict(
+                obj,
+                show_path=obj.get("show_path", True),
+                centered=obj.get("centered", False),
+                color=obj.get("color", default_color),
+                line_color=obj.get("line_color", obj.get("color", default_color)),
+            )
+            for obj in objs
+        ]
 
+        self.setWindowTitle("Newtonian Orbital Dynamics")
         self.setGeometry(300, 200, width, height)
 
         # Create the canvases
-        self.foreground = Foreground(*objs, G=G, dt=dt, width=width,
-            height=height, obj_size=obj_size, parent=self)
+        self.foreground = Foreground(
+            *objs,
+            G=G,
+            dt=dt,
+            width=width,
+            height=height,
+            obj_size=obj_size,
+            parent=self
+        )
         self.background = Background(width, height)
 
         # Makes a list of the colors for each object
-        self.colors = [obj['color'] or default_color for obj in objs]
-        self.background.colors = self.colors
+        self.colors = [obj["color"] for obj in objs]
+        self.line_colors = [obj["line_color"] for obj in objs]
+        self.background.colors = self.line_colors
         self.foreground.colors = self.colors
 
         # Makes a list of whether or not to show the path for each object
         # Check to make sure every input for `show_path` is either a boolean or an empty string
-        osp = [obj['show_path'] for obj in objs]
-        if not len(list(filter(lambda x: type(x)==bool, osp))) == len(osp):
-            raise Exception('Unknown data type for show_path parameter.')
+        osp = [obj["show_path"] for obj in objs]
+        if not len(list(filter(lambda x: type(x) == bool, osp))) == len(osp):
+            raise Exception("Unknown data type for show_path parameter.")
         self.background.show_paths = osp
 
         # Update every N milliseconds
@@ -236,7 +308,7 @@ class Background(QPixmap):
             if self.show_paths[n] is not False:
                 color = QColor(mpl_colors.cnames[self.colors[n]])
                 painter.setPen(color)
-                painter.drawPoint(*orbit)
+                painter.drawPoint(*[int(x) for x in orbit])
         painter.end()
 
 
@@ -255,8 +327,9 @@ class Foreground(QWidget):
     parent (default None) - Parameter for the inherited QWidget class.
     """
 
-    def __init__(self, *objs, G=None, dt=None, height=500, width=500,
-                 obj_size=5, parent=None):
+    def __init__(
+        self, *objs, G=None, dt=None, height=500, width=500, obj_size=5, parent=None
+    ):
         super().__init__(parent=parent)
         self.height = height
         self.width = width
@@ -291,25 +364,51 @@ class Foreground(QWidget):
             painter.setBrush(color)
 
             # Scale x and y distances by the size of the window
-            x = ((obj[0] - self.orbit.offset[0]) / self.scale) * (self.width/2 - 1) + self.width/2
-            y = ((obj[1] - self.orbit.offset[1]) / self.scale) * (self.height/2 - 1) + self.height/2
+            x = ((obj[0] - self.orbit.offset[0]) / self.scale) * (
+                self.width / 2 - 1
+            ) + self.width / 2
+            y = ((obj[1] - self.orbit.offset[1]) / self.scale) * (
+                self.height / 2 - 1
+            ) + self.height / 2
 
             # Record points to add to bg for path (and centers on circles)
-            self.orbital_prev.append((x + self.obj_size/2, y + self.obj_size/2))
+            self.orbital_prev.append((x + self.obj_size / 2, y + self.obj_size / 2))
             # Draw circle (ellipse with equal length and width)
-            painter.drawEllipse(x, y, self.obj_size, self.obj_size)
+            painter.drawEllipse(int(x), int(y), self.obj_size, self.obj_size)
 
 
 if __name__ == "__main__":
     width, height, obj_size = 800, 800, 10
-    objs = [{'mass': 100.0, 'pos': [-0.1, -0.1], 'vel': [ 8,  -8], 'color': 'firebrick', 'show_path': False, 'centered': True},
-            {'mass': 100.0, 'pos': [ 0.1,  0.1], 'vel': [-8,   8], 'color': 'indianred', 'show_path': False},
-            {'mass':   0.1, 'pos': [ 0.5,  0.0], 'vel': [ 0, -18], 'color': 'oldlace'},
-            {'mass':   0.2, 'pos': [ 0.0,  0.6], 'vel': [20,   0], 'color': 'mediumpurple'},
-            {'mass':   1.2, 'pos': [ 1.0,  1.0], 'vel': [ 6,  -5], 'color': 'darkkhaki'},
-            {'mass':   8.2, 'pos': [ 3.2,  3.2], 'vel': [ 2,  -5], 'color': 'green'},
-            {'mass':   3.3, 'pos': [-4.1, -3.5], 'vel': [-2,   4], 'color': 'steelblue'},
-            {'mass':  20.5, 'pos': [ 0.0, -2.0], 'vel': [-12,  -1], 'color': 'navajowhite'}]
+    objs = [
+        {
+            "mass": 100.0,
+            "pos": [-0.1, -0.1],
+            "vel": [8, -8],
+            "color": "firebrick",
+            "show_path": False,
+            "centered": True,
+        },
+        {
+            "mass": 100.0,
+            "pos": [0.1, 0.1],
+            "vel": [-8, 8],
+            "color": "indianred",
+            "show_path": False,
+            "centered": True,
+        },
+        {"mass": 0.1, "pos": [0.5, 0.0], "vel": [0, -18], "color": "oldlace"},
+        {
+            "mass": 0.2,
+            "pos": [0.0, 0.6],
+            "vel": [20, 0],
+            "color": "mediumpurple",
+            "centered": False,
+        },
+        {"mass": 1.2, "pos": [1.0, 1.0], "vel": [6, -5], "color": "darkkhaki"},
+        {"mass": 8.2, "pos": [3.2, 3.2], "vel": [2, -5], "color": "green"},
+        {"mass": 3.3, "pos": [-4.1, -3.5], "vel": [-2, 4], "color": "steelblue"},
+        {"mass": 20.5, "pos": [0.0, -2.0], "vel": [-12, -1], "color": "navajowhite"},
+    ]
     G = 1
     dt = 0.0003
 
@@ -326,13 +425,13 @@ if __name__ == "__main__":
 
     # The Solar System
     # objs = [{'mass': 1.99e30, 'pos': [0, 0], 'vel': [0, 0], 'color': 'red'}, # Sun
-    #         {'mass': 3.30e23, 'pos': [69.82e9, 0], 'vel': [0, 47.36e3]}, # Mercury
-    #         {'mass': 4.87e24, 'pos': [10.89e10, 0], 'vel': [0, 35.02e3]}, # Venus
-    #         {'mass': 5.97e24, 'pos': [15.21e10, 0], 'vel': [0, 29.78e3], 'color': 'blue'}, # Earth
-    #         {'mass': 6.42e23, 'pos': [24.92e10, 0], 'vel': [0, 24.01e3]}, # Mars
-    #         {'mass': 1.90e27, 'pos': [81.66e10, 0], 'vel': [0, 13.07e3]}, # Juptier
-    #         {'mass': 5.68e26, 'pos': [15.14e11, 0], 'vel': [0,  9.68e3]}, # Saturn
-    #         {'mass': 8.68e25, 'pos': [30.08e11, 0], 'vel': [0,  6.80e3]}, # Uranus
-    #         {'mass': 1.02e26, 'pos': [45.37e11, 0], 'vel': [0,  5.43e3]}] # Neptune
+    #         {'mass': 3.30e23, 'pos': [69.82e9, 0], 'vel': [0, 47.36e3], 'color': 'gray', 'line_color': 'black'}, # Mercury
+    #         {'mass': 4.87e24, 'pos': [10.89e10, 0], 'vel': [0, 35.02e3], 'color': 'gray', 'line_color': 'black'}, # Venus
+    #         {'mass': 5.97e24, 'pos': [15.21e10, 0], 'vel': [0, 29.78e3], 'color': 'blue', 'show_path': False, 'centered': True}, # Earth
+    #         {'mass': 6.42e23, 'pos': [24.92e10, 0], 'vel': [0, 24.01e3], 'color': 'olive', 'line_color': 'tan'}, # Mars
+    #         {'mass': 1.90e27, 'pos': [81.66e10, 0], 'vel': [0, 13.07e3], 'color': 'gray', 'line_color': 'black'}, # Juptier
+    #         {'mass': 5.68e26, 'pos': [15.14e11, 0], 'vel': [0,  9.68e3], 'color': 'gray', 'line_color': 'black'}, # Saturn
+    #         {'mass': 8.68e25, 'pos': [30.08e11, 0], 'vel': [0,  6.80e3], 'color': 'gray', 'line_color': 'black'}, # Uranus
+    #         {'mass': 1.02e26, 'pos': [45.37e11, 0], 'vel': [0,  5.43e3], 'color': 'gray', 'line_color': 'black'}] # Neptune
     # G = 6.67408e-11 # Gravitational constant
     # dt = 864000 # 10 days
