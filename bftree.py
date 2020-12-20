@@ -1,6 +1,7 @@
-def make_tree(tree, branch_factor, filler=' ', cage=True,
-              return_as_list=False, print_out=True):
-    '''
+def make_tree(
+    tree, branch_factor, filler=" ", cage=True, return_as_list=False, print_out=True
+):
+    """
     Given an array, tree, this function will display it as a breadth-first
     tree.
 
@@ -14,7 +15,7 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
     return_as_list - (default False) If true, will return the rows as strings
                      as elements of a list if True
     print_out - (default True) If true, will print out each row as it's found
-    '''
+    """
     rows, num_nodes = [], 0
 
     # Find number of max digits in the list. If it's an even number, pump it
@@ -24,18 +25,18 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
         num_digits += 1
 
     # Find how many levels (i.e. rows) there are to the tree
-    i = 0
+    ind = 0
     levels = 0
-    while i < len(tree):
-        i += branch_factor**levels
+    while ind < len(tree):
+        ind += branch_factor ** levels
         levels += 1
 
     # How many characters the last row will take up
-    max_spaces = branch_factor**(levels - 1) * (num_digits + 1)
+    max_spaces = branch_factor ** (levels - 1) * (num_digits + 1)
 
     # Printing of cage (i.e. the hyphens, pips and plus signs)
     if cage:
-        row = '+' + (max_spaces - 1) * '-' + '+'
+        row = "+" + (max_spaces - 1) * "-" + "+"
         if print_out:
             print(row)
         if return_as_list:
@@ -43,7 +44,7 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
 
     # Run through each row
     for row_num in range(levels):
-        row_len = branch_factor**row_num
+        row_len = branch_factor ** row_num
         num_nodes += row_len
 
         # Check if row will be partially or completely filled
@@ -59,13 +60,17 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
         spaces_per_node = num_spaces_per_node * filler
 
         # Throw that stuff together
-        row = ''
+        row = ""
         for num in range(column_iter):
-            shift = num + sum([branch_factor**r for r in range(row_num)])
-            row += '|' + spaces_per_node + \
-                str(tree[shift]).rjust(num_digits, filler) + spaces_per_node
+            shift = num + sum([branch_factor ** ind for ind in range(row_num)])
+            row += (
+                "|"
+                + spaces_per_node
+                + str(tree[shift]).rjust(num_digits, filler)
+                + spaces_per_node
+            )
 
-        row += '|'
+        row += "|"
         if print_out:
             print(row)
         if return_as_list:
@@ -73,7 +78,7 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
 
         # More cage printing
         if cage:
-            row = '+' + (len(row) - 2) * '-' + '+'
+            row = "+" + (len(row) - 2) * "-" + "+"
             if print_out:
                 print(row)
             if return_as_list:
@@ -85,7 +90,14 @@ def make_tree(tree, branch_factor, filler=' ', cage=True,
 
 if __name__ == "__main__":
     import random
+
     arr = [random.randint(0, 100) for _ in range(35)]
 
-    make_tree(tree=arr, branch_factor=3, filler=' ', cage=True,
-        return_as_list=True, print_out=True)
+    make_tree(
+        tree=arr,
+        branch_factor=2,
+        filler=" ",
+        cage=True,
+        return_as_list=True,
+        print_out=True,
+    )
