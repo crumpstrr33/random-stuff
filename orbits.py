@@ -32,12 +32,29 @@ effects of every object on object i. And it is analogous for the y-component
 The simulation is ran in Qt and that's pretty much it!
 """
 import sys
+from typing import Sequence, TypedDict
 
 import matplotlib.colors as mpl_colors
 import numpy as np
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPixmap
+from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QColor, QPainter, QPaintEvent, QPixmap
 from PyQt5.QtWidgets import QApplication, QWidget
+
+
+class BodyBase(TypedDict):
+    """Required values for obj dictionary"""
+
+    mass: float
+    pos: Sequence[float]
+    vel: Sequence[float]
+
+
+class Body(BodyBase, total=False):
+    """Optional vlaues for obj dictionary"""
+
+    color: str
+    show_path: bool
+    centered: bool
 
 
 class Orbit:
@@ -71,9 +88,9 @@ class Orbit:
          calculation of the positions and velocities. Lower is more accurate.
     """
 
-    def __init__(self, *objs, G=None, dt=None):
-        self.G = G or 1
-        self.dt = dt or 0.00005
+    def __init__(self, *objs: Body, G: float, dt: float):
+        self.G = G
+        self.dt = dt
         self.offset = [0, 0]
 
         # Index of dicts that is to have orbits centered on
@@ -113,7 +130,7 @@ class Orbit:
             raise Exception("Different number of dimensions for velocity and position.")
         self.num_dims = len(self.pos[0])
 
-    def find_new_acc(self):
+    def find_new_acc(self) -> Sequence[Sequence[float]]:
         """
         Given data on position and velocity of all objects, the resulting
         acceleration of each object due to every other object can be found with
@@ -165,7 +182,7 @@ class Orbit:
 
         return new_acc
 
-    def update_objects(self, acc):
+    def update_objects(self, acc: Sequence[Sequence[float]]) -> None:
         """
         With acceleration data, the velocity and position vectors for each
         object is updated in-place.
@@ -176,8 +193,9 @@ class Orbit:
                 self.pos[oind][dind] += self.vel[oind][dind] * self.dt
 
         if self.cinds is not None:
-            # Takes the average of each coordinate of objs with centered=True so that the centered point is the average
-            # of all of them. For example, if there is a binary system, you can center on the COM of the binary.
+            # Takes the average of each coordinate of objs with centered=True so that
+            # the centered point is the average of all of them. For example, if there
+            # is a binary system, you can center on the COM of the binary.
             self.offset = list(
                 map(
                     lambda x: sum(x) / len(x),
@@ -193,7 +211,7 @@ class Orbit:
         else:
             self.offset = self.dim * [0]
 
-    def iterate(self):
+    def iterate(self) -> None:
         """
         Goes through one 'iteration' where each takes a total time of dt. Since
         this is a discretized version of Newtonian dynamics, it will be more
@@ -210,19 +228,21 @@ class Window(QWidget):
 
     Parameters:
     default_color (default black) - Only one not passed on. The default color
-                                    of the objects if no color is specified.
+        of the objects if no color is specified.
+    G, dt, width, height, obj_size, scale_coeff - See Foreground class
     """
 
     def __init__(
         self,
-        *objs,
-        default_color="black",
-        G=None,
-        dt=None,
-        width=500,
-        height=500,
-        obj_size=5,
-        parent=None
+        *objs: Body,
+        default_color: str = "black",
+        G: float = 1,
+        dt: float = 0.00005,
+        width: int = 500,
+        height: int = 500,
+        obj_size: float = 5,
+        scale_coeff: float = 1.5,
+        parent=None,
     ):
         super().__init__(parent=parent)
         # Fills in the blanks in the list of dict due to default values
@@ -250,7 +270,8 @@ class Window(QWidget):
             width=width,
             height=height,
             obj_size=obj_size,
-            parent=self
+            scale_coeff=scale_coeff,
+            parent=self,
         )
         self.background = Background(width, height)
 
@@ -272,14 +293,14 @@ class Window(QWidget):
         self.timer.timeout.connect(self.multi_update)
         self.timer.start(5)
 
-    def multi_update(self):
+    def multi_update(self) -> None:
         # Update everything
         self.foreground.update()
         self.background.orbital_prev = self.foreground.orbital_prev
         self.background.paintEvent()
         self.update()
 
-    def paintEvent(self, evt):
+    def paintEvent(self, evt: QPaintEvent) -> None:
         # Adds the pixmap to itself
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self.background)
@@ -294,13 +315,13 @@ class Background(QPixmap):
     n^m points to paint but with this, it's just 2n points.
     """
 
-    def __init__(self, width, height):
+    def __init__(self, width: int, height: int):
         QPixmap.__init__(self, width, height)
         # Background color
         self.fill(QColor(200, 200, 200))
         self.orbital_prev = []
 
-    def paintEvent(self):
+    def paintEvent(self) -> None:
         # QPixmap doesn't have a paintEvent, this is just a mocked-up version
         painter = QPainter(self)
         for n, orbit in enumerate(self.orbital_prev):
@@ -319,20 +340,35 @@ class Foreground(QWidget):
 
     Parameters:
     objs - The arbitrary number of objects to be passed to the Orbit class.
-    G (default None) - The value for the gravitational constant to be passed to
-                       the Orbit class.
-    dt (default None) - The time interval to be passed to the Orbit class.
-    height (default 500) - Height of the widget
-    width (default 500) - Width of the widget
-    parent (default None) - Parameter for the inherited QWidget class.
+    G - The value for the gravitational constant to be passed to the Orbit class.
+    dt - The time interval to be passed to the Orbit class.
+    height - Height of the widget
+    width - Width of the widget
+    obj_size - The size of the shape representing the body
+    scale_coeff - The scale of the simulation. The x and y limit will
+        be at the maximum absolute distance from the center (in either x and y) multiplied
+        by `scale_coeff`.
+    parent - Parameter for the inherited QWidget class.
     """
 
     def __init__(
-        self, *objs, G=None, dt=None, height=500, width=500, obj_size=5, parent=None
+        self,
+        *objs: Body,
+        G: float,
+        dt: float,
+        height: int,
+        width: int,
+        obj_size: float,
+        scale_coeff: float,
+        parent: Window,
     ):
         super().__init__(parent=parent)
         self.height = height
         self.width = width
+        # Paint points within a square window so they aren't skewed, so assume a square
+        # window with the smaller dimension as the side length. Then will be centered
+        # within longer dimension
+        self.min_axis = min(height, width)
         self.obj_size = obj_size
         self.orbital_prev = []
 
@@ -340,15 +376,15 @@ class Foreground(QWidget):
         # Create class to calculate data for simulation
         self.orbit = Orbit(*objs, G=G, dt=dt)
         # Scale to normalize distances in the window
-        self.scale = 1.5 * max(self.orbit.pos.flatten())
+        self.scale = scale_coeff * max(np.abs(self.orbit.pos.flatten()))
 
-    def paintEvent(self, evt):
+    def paintEvent(self, evt: QPaintEvent) -> None:
         painter = QPainter(self)
         self.drawPoints(painter)
         painter.end()
         self.orbit.iterate()
 
-    def drawPoints(self, painter):
+    def drawPoints(self, painter: QPainter) -> None:
         """
         Draws one frame to the window.
 
@@ -363,22 +399,30 @@ class Foreground(QWidget):
             painter.setPen(color)
             painter.setBrush(color)
 
-            # Scale x and y distances by the size of the window
-            x = ((obj[0] - self.orbit.offset[0]) / self.scale) * (
-                self.width / 2 - 1
-            ) + self.width / 2
-            y = ((obj[1] - self.orbit.offset[1]) / self.scale) * (
-                self.height / 2 - 1
-            ) + self.height / 2
+            # Scale x and y distances by the size of the window with magic
+            x = self._scale(obj[0], 0)
+            y = self._scale(obj[1], 1)
 
             # Record points to add to bg for path (and centers on circles)
             self.orbital_prev.append((x + self.obj_size / 2, y + self.obj_size / 2))
             # Draw circle (ellipse with equal length and width)
             painter.drawEllipse(int(x), int(y), self.obj_size, self.obj_size)
 
+    def _scale(self, obj, coord):
+        """For `coord`, 0 is x and 1 is y"""
+        return (
+            ((obj - self.orbit.offset[coord]) / self.scale) * (self.min_axis / 2 - 1)
+            + ({0: self.width, 1: self.height}[coord] - self.min_axis) / 2
+            + self.min_axis / 2
+        )
+
 
 if __name__ == "__main__":
-    width, height, obj_size = 800, 800, 10
+    from win32api import GetSystemMetrics
+
+    WIDTH = GetSystemMetrics(0)
+    HEIGHT = GetSystemMetrics(1)
+    OBJ_SIZE = 10
     objs = [
         {
             "mass": 100.0,
@@ -413,25 +457,72 @@ if __name__ == "__main__":
     dt = 0.0003
 
     app = QApplication(sys.argv)
-    window = Window(*objs, G=G, dt=dt, width=width, height=height, obj_size=obj_size)
+    window = Window(
+        *objs, G=G, dt=dt, width=WIDTH, height=HEIGHT, obj_size=OBJ_SIZE, scale_coeff=3
+    )
     window.show()
     sys.exit(app.exec_())
 
-    # Testing system
-    # objs = [{'mass': 100, 'pos': [0, 0], 'vel': [0, 0], 'color':'orange', 'centered': True},
-    #         {'mass':   3, 'pos': [5, 0], 'vel': [0, 2], 'color':'grey'}]
-    # G = 1
-    # dt = 0.003
-
     # The Solar System
-    # objs = [{'mass': 1.99e30, 'pos': [0, 0], 'vel': [0, 0], 'color': 'red'}, # Sun
-    #         {'mass': 3.30e23, 'pos': [69.82e9, 0], 'vel': [0, 47.36e3], 'color': 'gray', 'line_color': 'black'}, # Mercury
-    #         {'mass': 4.87e24, 'pos': [10.89e10, 0], 'vel': [0, 35.02e3], 'color': 'gray', 'line_color': 'black'}, # Venus
-    #         {'mass': 5.97e24, 'pos': [15.21e10, 0], 'vel': [0, 29.78e3], 'color': 'blue', 'show_path': False, 'centered': True}, # Earth
-    #         {'mass': 6.42e23, 'pos': [24.92e10, 0], 'vel': [0, 24.01e3], 'color': 'olive', 'line_color': 'tan'}, # Mars
-    #         {'mass': 1.90e27, 'pos': [81.66e10, 0], 'vel': [0, 13.07e3], 'color': 'gray', 'line_color': 'black'}, # Juptier
-    #         {'mass': 5.68e26, 'pos': [15.14e11, 0], 'vel': [0,  9.68e3], 'color': 'gray', 'line_color': 'black'}, # Saturn
-    #         {'mass': 8.68e25, 'pos': [30.08e11, 0], 'vel': [0,  6.80e3], 'color': 'gray', 'line_color': 'black'}, # Uranus
-    #         {'mass': 1.02e26, 'pos': [45.37e11, 0], 'vel': [0,  5.43e3], 'color': 'gray', 'line_color': 'black'}] # Neptune
+    # objs = [
+    #     {"mass": 1.99e30, "pos": [0, 0], "vel": [0, 0], "color": "red"},  # Sun
+    #     {
+    #         "mass": 3.30e23,
+    #         "pos": [69.82e9, 0],
+    #         "vel": [0, 47.36e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },  # Mercury
+    #     {
+    #         "mass": 4.87e24,
+    #         "pos": [10.89e10, 0],
+    #         "vel": [0, 35.02e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },  # Venus
+    #     {
+    #         "mass": 5.97e24,
+    #         "pos": [15.21e10, 0],
+    #         "vel": [0, 29.78e3],
+    #         "color": "blue",
+    #         "show_path": False,
+    #         "centered": True,
+    #     },  # Earth
+    #     {
+    #         "mass": 6.42e23,
+    #         "pos": [24.92e10, 0],
+    #         "vel": [0, 24.01e3],
+    #         "color": "olive",
+    #         "line_color": "tan",
+    #     },  # Mars
+    #     {
+    #         "mass": 1.90e27,
+    #         "pos": [81.66e10, 0],
+    #         "vel": [0, 13.07e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },  # Juptier
+    #     {
+    #         "mass": 5.68e26,
+    #         "pos": [15.14e11, 0],
+    #         "vel": [0, 9.68e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },  # Saturn
+    #     {
+    #         "mass": 8.68e25,
+    #         "pos": [30.08e11, 0],
+    #         "vel": [0, 6.80e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },  # Uranus
+    #     {
+    #         "mass": 1.02e26,
+    #         "pos": [45.37e11, 0],
+    #         "vel": [0, 5.43e3],
+    #         "color": "gray",
+    #         "line_color": "black",
+    #     },
+    # ]  # Neptune
     # G = 6.67408e-11 # Gravitational constant
     # dt = 864000 # 10 days
