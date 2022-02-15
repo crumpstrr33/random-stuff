@@ -418,10 +418,11 @@ class Foreground(QWidget):
 
 
 if __name__ == "__main__":
-    from win32api import GetSystemMetrics
+    app = QApplication(sys.argv)
+    size = app.primaryScreen().size()
 
-    WIDTH = GetSystemMetrics(0)
-    HEIGHT = GetSystemMetrics(1)
+    WIDTH = size.width()
+    HEIGHT = size.height()
     OBJ_SIZE = 10
     objs = [
         {
@@ -451,12 +452,11 @@ if __name__ == "__main__":
         {"mass": 1.2, "pos": [1.0, 1.0], "vel": [6, -5], "color": "darkkhaki"},
         {"mass": 8.2, "pos": [3.2, 3.2], "vel": [2, -5], "color": "green"},
         {"mass": 3.3, "pos": [-4.1, -3.5], "vel": [-2, 4], "color": "steelblue"},
-        {"mass": 20.5, "pos": [0.0, -2.0], "vel": [-12, -1], "color": "navajowhite"},
+        {"mass": 20.5, "pos": [0.0, -2.0], "vel": [-12, -1], "color": "navajowhite", "centered": True},
     ]
     G = 1
     dt = 0.0003
 
-    app = QApplication(sys.argv)
     window = Window(
         *objs, G=G, dt=dt, width=WIDTH, height=HEIGHT, obj_size=OBJ_SIZE, scale_coeff=3
     )
