@@ -14,13 +14,13 @@ By the following quick derivation:
 This comes about since "we see that the horizontal component of the force is
 related to the complete force in the same manner as the horizontal distance x is
 to the complete hypotenuse r, because the two triangles are similar. Also, if x
-is positive, Fx is negative." (http://www.feynmanlectures.caltech.edu/I_09.html)
+is positive, F_x is negative." (http://www.feynmanlectures.caltech.edu/I_09.html)
 
 We also have the relation that r = sqrt(x^2 + y^2) for a 2D system. To find the
 force on an object i created by all other forces, we have:
 
         F_i = sum_j=1^N(-G*m_i*m_j(x_i - x_j)/r^3)
-        m_i*a_i = sum_j=1^N(-G*m_i*m_j(x_i - x_j)/r^3)
+    m_i*a_i = sum_j=1^N(-G*m_i*m_j(x_i - x_j)/r^3)
         a_i = sum_j=1^N(-G*m_j(x_i - x_j)/r^3)
         a_i = -G * sum_j=1^N(m_j(x_i - x_j)/r^3)
 
@@ -71,6 +71,15 @@ class ButtonClick(Protocol):
 
     def __call__(self, attr: str, val: str, *args: Any) -> None:
         ...
+
+
+def is_float(element: Any) -> bool:
+    """Checks if `element` can be cast as a float"""
+    try:
+        float(element)
+        return True
+    except ValueError:
+        return False
 
 
 class Orbit:
@@ -414,15 +423,18 @@ class Popup(QDialog):
         self.layout.addWidget(self.new_val)
         self.layout.addWidget(self.accept)
         self.accept.clicked.connect(
-            lambda: self._button_clicked(button_cmd, [attr, self.new_val.text()])
+            lambda: self._button_clicked(button_cmd, [attr, self.new_val.text()], float)
         )
 
     def _button_clicked(
-        self, wrapped_cmd: ButtonClick, wrapped_args: Sequence[str]
+        self, wrapped_cmd: ButtonClick, wrapped_args: Sequence[str], vtype: type
     ) -> None:
         """Wrapper for clicking the Popup button"""
-        wrapped_cmd(*wrapped_args)
-        self.close()
+        if vtype == float:
+            # Check if value can be cast as float
+            if is_float(wrapped_args[1]):
+                wrapped_cmd(*wrapped_args)
+                self.close()
 
 
 class Background(QPixmap):
