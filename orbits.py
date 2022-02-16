@@ -32,13 +32,22 @@ effects of every object on object i. And it is analogous for the y-component
 The simulation is ran in Qt and that's pretty much it!
 """
 import sys
-from typing import Sequence, TypedDict
+from typing import Any, Callable, Protocol, Sequence, TypedDict, Union
 
 import matplotlib.colors as mpl_colors
 import numpy as np
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QPainter, QPaintEvent, QPixmap
-from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class BodyBase(TypedDict):
@@ -55,6 +64,13 @@ class Body(BodyBase, total=False):
     color: str
     show_path: bool
     centered: bool
+
+
+class ButtonClick(Protocol):
+    """Form of method for button clicks"""
+
+    def __call__(self, attr: str, val: str, *args: Any) -> None:
+        ...
 
 
 class Orbit:
@@ -221,10 +237,76 @@ class Orbit:
         self.update_objects(new_acc)
 
 
-class Window(QWidget):
+class Picture(QWidget):
     """
-    Main window which has the timer which updates both the foreground and the
-    background. All parameters are for Foreground and Background classes
+    Widget which contains the simulation (the Foreground and Background classes).
+    All parameters are for Foreground and Background classes
+
+    Parameters:
+    G, dt, width, height, obj_size, scale_coeff - See Foreground class
+    """
+
+    def __init__(
+        self,
+        *objs: Body,
+        G: float,
+        dt: float,
+        width: int,
+        height: int,
+        obj_size: float,
+        scale_coeff: float,
+        parent,
+    ):
+        super().__init__(parent=parent)
+
+        self.foreground = Foreground(
+            *objs,
+            G=G,
+            dt=dt,
+            width=width,
+            height=height,
+            obj_size=obj_size,
+            scale_coeff=scale_coeff,
+            parent=self,
+        )
+        self.background = Background(width=width, height=height)
+
+        # Makes a list of the colors for each object
+        self.colors = [obj["color"] for obj in objs]
+        self.line_colors = [obj["line_color"] for obj in objs]
+        self.background.colors = self.line_colors
+        self.foreground.colors = self.colors
+
+        # Makes a list of whether or not to show the path for each object
+        # Check to make sure every input for `show_path` is either a boolean or an empty string
+        osp = [obj["show_path"] for obj in objs]
+        if not len(list(filter(lambda x: type(x) == bool, osp))) == len(osp):
+            raise Exception("Unknown data type for show_path parameter.")
+        self.background.show_paths = osp
+
+        # Update every N milliseconds
+        self.timer = QTimer()
+        self.timer.timeout.connect(self._multi_update)
+        self.timer.start(5)
+
+    def _multi_update(self) -> None:
+        """Moves everything forward"""
+        self.foreground.update()
+        self.background.orbital_prev = self.foreground.orbital_prev
+        self.background.paintEvent()
+        self.update()
+
+    def paintEvent(self, evt: QPaintEvent) -> None:
+        """Paints the background, i.e. paths, to window"""
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.background)
+        painter.end()
+
+
+class Window(QMainWindow):
+    """
+    Main window contains the menubar and the central widget for the simulation.
+    All parameters are for Foreground and Background classes
 
     Parameters:
     default_color (default black) - Only one not passed on. The default color
@@ -245,6 +327,10 @@ class Window(QWidget):
         parent=None,
     ):
         super().__init__(parent=parent)
+        self._create_menubar()
+        self.setWindowTitle("Newtonian Orbital Dynamics")
+        self.setGeometry(300, 200, width, height)
+
         # Fills in the blanks in the list of dict due to default values
         # `show_path` defaults to `True`, `centered` defaults to `False`
         # and `color` to `black`
@@ -258,12 +344,7 @@ class Window(QWidget):
             )
             for obj in objs
         ]
-
-        self.setWindowTitle("Newtonian Orbital Dynamics")
-        self.setGeometry(300, 200, width, height)
-
-        # Create the canvases
-        self.foreground = Foreground(
+        self.picture = Picture(
             *objs,
             G=G,
             dt=dt,
@@ -273,38 +354,75 @@ class Window(QWidget):
             scale_coeff=scale_coeff,
             parent=self,
         )
-        self.background = Background(width, height)
+        self.setCentralWidget(self.picture)
 
-        # Makes a list of the colors for each object
-        self.colors = [obj["color"] for obj in objs]
-        self.line_colors = [obj["line_color"] for obj in objs]
-        self.background.colors = self.line_colors
-        self.foreground.colors = self.colors
+    def _create_menubar(self) -> None:
+        """
+        Menu for the main window.
+        """
+        edit = self.menuBar().addMenu("Edit")
+        edit_dt = edit.addAction("Change time")
+        edit_G = edit.addAction("Change gravity")
+        edit_dt.triggered.connect(lambda: self._edit_val("dt", "time"))
+        edit_G.triggered.connect(lambda: self._edit_val("G", "gravity"))
 
-        # Makes a list of whether or not to show the path for each object
-        # Check to make sure every input for `show_path` is either a boolean or an empty string
-        osp = [obj["show_path"] for obj in objs]
-        if not len(list(filter(lambda x: type(x) == bool, osp))) == len(osp):
-            raise Exception("Unknown data type for show_path parameter.")
-        self.background.show_paths = osp
+    def _edit_val(self, attr: str, name: str) -> None:
+        """
+        Abstract method to change the value of attribute `attr`
+        in the Orbit class. The value `name` is the string to use
+        to describe it in the Popup window. The new value for the 
+        attribute is given in the QLineEdit `self.new_val` of the
+        Popup class. Currently being used for `dt` and `G`.
+        """
+        popup = Popup(
+            f"New {name.capitalize()} Value",
+            self._change_val,
+            val=getattr(self.picture.foreground.orbit, attr),
+            attr=attr,
+            parent=self,
+        )
+        popup.setGeometry(350, 250, 300, 100)
+        popup.show()
 
-        # Update every N milliseconds
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.multi_update)
-        self.timer.start(5)
+    def _change_val(self, attr: str, new_val: Union[str, float, int]) -> None:
+        """
+        Method called when the QPushButton `self.accept` is clicked
+        in the Popup class. Changes the value of the attribute `attr`
+        of the Orbit class to `new_val`.
+        """
+        setattr(self.picture.foreground.orbit, attr, float(new_val))
 
-    def multi_update(self) -> None:
-        # Update everything
-        self.foreground.update()
-        self.background.orbital_prev = self.foreground.orbital_prev
-        self.background.paintEvent()
-        self.update()
 
-    def paintEvent(self, evt: QPaintEvent) -> None:
-        # Adds the pixmap to itself
-        painter = QPainter(self)
-        painter.drawPixmap(0, 0, self.background)
-        painter.end()
+class Popup(QDialog):
+    def __init__(
+        self,
+        name: str,
+        button_cmd: Callable[[Window, str, Union[str, float, int]], None],
+        val: float,
+        attr: str,
+        parent: Window = None,
+    ):
+        super().__init__(parent)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        self.label = QLabel(f"{name} (Current: {val}): ", self)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.new_val = QLineEdit(parent=self)
+        self.accept = QPushButton(f"Change")
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.new_val)
+        self.layout.addWidget(self.accept)
+        self.accept.clicked.connect(
+            lambda: self._button_clicked(button_cmd, [attr, self.new_val.text()])
+        )
+
+    def _button_clicked(
+        self, wrapped_cmd: ButtonClick, wrapped_args: Sequence[str]
+    ) -> None:
+        """Wrapper for clicking the Popup button"""
+        wrapped_cmd(*wrapped_args)
+        self.close()
 
 
 class Background(QPixmap):
@@ -421,8 +539,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     size = app.primaryScreen().size()
 
-    WIDTH = size.width()
-    HEIGHT = size.height()
+    WIDTH = int(size.width() / 1.2)
+    HEIGHT = int(size.height() / 1.2)
     OBJ_SIZE = 10
     objs = [
         {
@@ -452,7 +570,13 @@ if __name__ == "__main__":
         {"mass": 1.2, "pos": [1.0, 1.0], "vel": [6, -5], "color": "darkkhaki"},
         {"mass": 8.2, "pos": [3.2, 3.2], "vel": [2, -5], "color": "green"},
         {"mass": 3.3, "pos": [-4.1, -3.5], "vel": [-2, 4], "color": "steelblue"},
-        {"mass": 20.5, "pos": [0.0, -2.0], "vel": [-12, -1], "color": "navajowhite", "centered": True},
+        {
+            "mass": 20.5,
+            "pos": [0.0, -2.0],
+            "vel": [-12, -1],
+            "color": "navajowhite",
+            "centered": False,
+        },
     ]
     G = 1
     dt = 0.0003
