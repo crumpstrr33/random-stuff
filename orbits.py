@@ -53,6 +53,10 @@ from PyQt5.QtWidgets import (
 
 @dataclass
 class Body:
+    """
+    All data for each celestial body
+    """
+
     mass: float
     pos: Tuple[float, float]
     vel: Tuple[float, float]
@@ -109,12 +113,9 @@ class Orbit:
 
         # Index of dicts that is to have orbits centered on
         self.cinds: Optional[List[int]]
-        try:
-            self.cinds = [
-                objs.index(obj) for obj in filter(lambda x: x.centered is True, objs)
-            ]
-        except IndexError:
-            self.cinds = None
+        self.cinds = [
+            objs.index(obj) for obj in filter(lambda x: x.centered is True, objs)
+        ]
 
         # Arrays with dimension (no. objects, no. dimensions)
         self.pos = np.array([obj.pos for obj in objs], dtype="float128")
@@ -201,7 +202,7 @@ class Orbit:
                 self.vel[oind][dind] += acc[oind][dind] * self.dt
                 self.pos[oind][dind] += self.vel[oind][dind] * self.dt
 
-        if self.cinds is not None:
+        if len(self.cinds):
             # Takes the average of each coordinate of objs with centered=True so that
             # the centered point is the average of all of them. For example, if there
             # is a binary system, you can center on the COM of the binary.
@@ -228,6 +229,100 @@ class Orbit:
         """
         new_acc = self.find_new_acc()
         self.update_objects(new_acc)
+
+
+class Window(QMainWindow):
+    """
+    Main window contains the menubar and the central widget for the simulation.
+    All parameters are for Foreground and Background classes
+
+    Parameters:
+    default_color (default black) - Only one not passed on. The default color
+        of the objects if no color is specified.
+    G, dt, width, height, obj_size, scale_coeff - See Foreground class
+    """
+
+    def __init__(
+        self,
+        objs: Sequence[Body],
+        default_color: str = "black",
+        G: Union[float, int] = 1.0,
+        dt: Union[float, int] = 0.00005,
+        width: int = 500,
+        height: int = 500,
+        obj_size: float = 5,
+        scale_coeff: float = 1.5,
+        parent=None,
+    ):
+        super().__init__(parent=parent)
+        self._create_menubar()
+        self.setWindowTitle("Newtonian Orbital Dynamics")
+        self.setGeometry(300, 200, width, height)
+
+        self.picture = Picture(
+            objs,
+            default_color=default_color,
+            G=float(G),
+            dt=float(dt),
+            width=width,
+            height=height,
+            obj_size=obj_size,
+            scale_coeff=scale_coeff,
+            parent=self,
+        )
+        self.setCentralWidget(self.picture)
+
+    def _create_menubar(self) -> None:
+        """
+        Menu for the main window.
+        """
+        file = self.menuBar().addMenu("File")
+        self.file_pause = file.addAction("Pause Simulation")
+        self.file_pause.triggered.connect(self._toggle_pause)
+        self.file_pause.setShortcut(Qt.Key_Space)
+
+        edit = self.menuBar().addMenu("Edit")
+        edit_dt = edit.addAction("Change time")
+        edit_dt.setShortcut(QKeySequence("Ctrl+T"))
+        edit_dt.triggered.connect(lambda: self._edit_val("dt", "time"))
+        edit_G = edit.addAction("Change gravity")
+        edit_G.setShortcut(QKeySequence("Ctrl+G"))
+        edit_G.triggered.connect(lambda: self._edit_val("G", "gravity"))
+        edit_add = edit.addAction("Add Object")
+
+    def _edit_val(self, attr: str, name: str) -> None:
+        """
+        Abstract method to change the value of attribute `attr`
+        in the Orbit class. The value `name` is the string to use
+        to describe it in the Popup window. The new value for the 
+        attribute is given in the QLineEdit `self.new_val` of the
+        Popup class. Currently being used for `dt` and `G`.
+        """
+        popup = Popup(
+            f"New {name.capitalize()} Value",
+            self._change_val,
+            val=getattr(self.picture.foreground.orbit, attr),
+            attr=attr,
+            parent=self,
+        )
+        popup.setGeometry(350, 250, 300, 100)
+        popup.show()
+
+    def _change_val(self, attr: str, new_val: Union[str, float, int]) -> None:
+        """
+        Method called when the QPushButton `self.accept` is clicked
+        in the Popup class. Changes the value of the attribute `attr`
+        of the Orbit class to `new_val`.
+        """
+        setattr(self.picture.foreground.orbit, attr, float(new_val))
+
+    def _toggle_pause(self):
+        if self.picture.timer.isActive():
+            self.picture.timer.stop()
+            self.file_pause.setText("Unpause Simulation")
+        else:
+            self.picture.timer.start()
+            self.file_pause.setText("Pause Simulation")
 
 
 class Picture(QWidget):
@@ -300,148 +395,6 @@ class Picture(QWidget):
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self.background)
         painter.end()
-
-
-class Window(QMainWindow):
-    """
-    Main window contains the menubar and the central widget for the simulation.
-    All parameters are for Foreground and Background classes
-
-    Parameters:
-    default_color (default black) - Only one not passed on. The default color
-        of the objects if no color is specified.
-    G, dt, width, height, obj_size, scale_coeff - See Foreground class
-    """
-
-    def __init__(
-        self,
-        objs: Sequence[Body],
-        default_color: str = "black",
-        G: float = 1,
-        dt: float = 0.00005,
-        width: int = 500,
-        height: int = 500,
-        obj_size: float = 5,
-        scale_coeff: float = 1.5,
-        parent=None,
-    ):
-        super().__init__(parent=parent)
-        self._create_menubar()
-        self.setWindowTitle("Newtonian Orbital Dynamics")
-        self.setGeometry(300, 200, width, height)
-
-        self.picture = Picture(
-            objs,
-            default_color=default_color,
-            G=G,
-            dt=dt,
-            width=width,
-            height=height,
-            obj_size=obj_size,
-            scale_coeff=scale_coeff,
-            parent=self,
-        )
-        self.setCentralWidget(self.picture)
-
-    def _create_menubar(self) -> None:
-        """
-        Menu for the main window.
-        """
-        file = self.menuBar().addMenu("File")
-        self.file_pause = file.addAction("Pause Simulation")
-        self.file_pause.triggered.connect(self._toggle_pause)
-        self.file_pause.setShortcut(Qt.Key_Space)
-
-        edit = self.menuBar().addMenu("Edit")
-        edit_dt = edit.addAction("Change time")
-        edit_dt.setShortcut(QKeySequence("Ctrl+T"))
-        edit_dt.triggered.connect(lambda: self._edit_val("dt", "time"))
-        edit_G = edit.addAction("Change gravity")
-        edit_G.setShortcut(QKeySequence("Ctrl+G"))
-        edit_G.triggered.connect(lambda: self._edit_val("G", "gravity"))
-        edit_add = edit.addAction("Add Object")
-
-    def _edit_val(self, attr: str, name: str) -> None:
-        """
-        Abstract method to change the value of attribute `attr`
-        in the Orbit class. The value `name` is the string to use
-        to describe it in the Popup window. The new value for the 
-        attribute is given in the QLineEdit `self.new_val` of the
-        Popup class. Currently being used for `dt` and `G`.
-        """
-        popup = Popup(
-            f"New {name.capitalize()} Value",
-            self._change_val,
-            val=getattr(self.picture.foreground.orbit, attr),
-            attr=attr,
-            parent=self,
-        )
-        popup.setGeometry(350, 250, 300, 100)
-        popup.show()
-
-    def _change_val(self, attr: str, new_val: Union[str, float, int]) -> None:
-        """
-        Method called when the QPushButton `self.accept` is clicked
-        in the Popup class. Changes the value of the attribute `attr`
-        of the Orbit class to `new_val`.
-        """
-        setattr(self.picture.foreground.orbit, attr, float(new_val))
-
-    def _toggle_pause(self):
-        if self.picture.timer.isActive():
-            self.picture.timer.stop()
-            self.file_pause.setText("Unpause Simulation")
-        else:
-            self.picture.timer.start()
-            self.file_pause.setText("Pause Simulation")
-
-
-class PopupBase(QDialog):
-    def _button_clicked(
-        self,
-        wrapped_cmd: Callable[..., None],
-        wrapped_args: Sequence[Any],
-        checks: Sequence[Tuple[int, Callable[..., bool]]],
-    ) -> None:
-        """
-        When this method is called, the function `wrapped_cmd` will be run with arguments
-        `wrapped_args`. Each element of `checks` is a tuple with an int referring to an
-        element of `wrapped_args` and a function to pass that element to which will return
-        a boolean value. Essentially, you can check specific arguments being passed for specific
-        conditions, e.g. if an argument can be cast into a float.
-        """
-        for check in checks:
-            if not check[1](check[0]):
-                return
-        wrapped_cmd(*wrapped_args)
-        self.close()
-
-
-class Popup(PopupBase):
-    def __init__(
-        self,
-        name: str,
-        button_cmd: Callable[[str, Union[str, float, int]], None],
-        val: float,
-        attr: str,
-        parent: Window,
-    ):
-        super().__init__(parent=parent)
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        self.label = QLabel(f"{name} (Current: {val}): ", self)
-        self.label.setAlignment(Qt.AlignCenter)
-        self.new_val = QLineEdit(parent=self)
-        self.accept = QPushButton("Accept")
-        self.layout.addWidget(self.label)
-        self.layout.addWidget(self.new_val)
-        self.layout.addWidget(self.accept)
-        self.accept.clicked.connect(
-            lambda: self._button_clicked(
-                button_cmd, [attr, self.new_val.text()], [(1, is_float)]
-            )
-        )
 
 
 class Background(QPixmap):
@@ -554,6 +507,54 @@ class Foreground(QWidget):
         )
 
 
+class PopupBase(QDialog):
+    def _button_clicked(
+        self,
+        wrapped_cmd: Callable[..., None],
+        wrapped_args: Sequence[Any],
+        checks: Sequence[Tuple[int, Callable[..., bool]]],
+    ) -> None:
+        """
+        When this method is called, the function `wrapped_cmd` will be run with arguments
+        `wrapped_args`. Each element of `checks` is a tuple with an int referring to an
+        element of `wrapped_args` and a function to pass that element to which will return
+        a boolean value. Essentially, you can check specific arguments being passed for specific
+        conditions, e.g. if an argument can be cast into a float.
+        """
+        for check in checks:
+            if not check[1](check[0]):
+                return
+        wrapped_cmd(*wrapped_args)
+        self.close()
+
+
+class Popup(PopupBase):
+    def __init__(
+        self,
+        name: str,
+        button_cmd: Callable[[str, Union[str, float, int]], None],
+        val: float,
+        attr: str,
+        parent: Window,
+    ):
+        super().__init__(parent=parent)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        self.label = QLabel(f"{name} (Current: {val}): ", self)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.new_val = QLineEdit(parent=self)
+        self.accept = QPushButton("Accept")
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.new_val)
+        self.layout.addWidget(self.accept)
+        self.accept.clicked.connect(
+            lambda: self._button_clicked(
+                button_cmd, [attr, self.new_val.text()], [(1, is_float)]
+            )
+        )
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     size = app.primaryScreen().size()
@@ -561,99 +562,101 @@ if __name__ == "__main__":
     WIDTH = int(size.width() / 1.2)
     HEIGHT = int(size.height() / 1.2)
     OBJ_SIZE = 10
-    objs = [
-        Body(
-            mass=100.0,
-            pos=(-0.1, -0.1),
-            vel=(8, -8),
-            color="firebrick",
-            show_path=False,
-            centered=True,
-        ),
-        Body(
-            mass=100.0,
-            pos=(0.1, 0.1),
-            vel=(-8, 8),
-            color="indianred",
-            show_path=False,
-            centered=True,
-        ),
-        Body(mass=0.1, pos=(0.5, 0.0), vel=(0, -18), color="oldlace"),
-        Body(mass=0.2, pos=(0.0, 0.6), vel=(20, 0), color="mediumpurple"),
-        Body(mass=1.2, pos=(1.0, 1.0), vel=(6, -5), color="darkkhaki"),
-        Body(mass=8.2, pos=(3.2, 3.2), vel=(2, -5), color="green"),
-        Body(mass=3.3, pos=(-4.1, -3.5), vel=(-2, 4), color="steelblue"),
-        Body(mass=20.5, pos=(0.0, -2.0), vel=(-12, -1), color="navajowhite"),
-    ]
-    G = 1
-    dt = 0.0003
+    IS_SOLARSYSTEM = True
+
+    if not IS_SOLARSYSTEM:
+        objs = [
+            Body(
+                mass=100.0,
+                pos=(-0.1, -0.1),
+                vel=(8, -8),
+                color="firebrick",
+                show_path=False,
+                centered=True,
+            ),
+            Body(
+                mass=100.0,
+                pos=(0.1, 0.1),
+                vel=(-8, 8),
+                color="indianred",
+                show_path=False,
+                centered=True,
+            ),
+            Body(mass=0.1, pos=(0.5, 0.0), vel=(0, -18), color="oldlace"),
+            Body(mass=0.2, pos=(0.0, 0.6), vel=(20, 0), color="mediumpurple"),
+            Body(mass=1.2, pos=(1.0, 1.0), vel=(6, -5), color="darkkhaki"),
+            Body(mass=8.2, pos=(3.2, 3.2), vel=(2, -5), color="green"),
+            Body(mass=3.3, pos=(-4.1, -3.5), vel=(-2, 4), color="steelblue"),
+            Body(mass=20.5, pos=(0.0, -2.0), vel=(-12, -1), color="navajowhite"),
+        ]
+        G = 1
+        dt = 0.0003
+    else:
+        # The Solar System
+        objs = [
+            Body(mass=1.99e30, pos=(0.0, 0.0), vel=(0.0, 0.0), color="red"),  # Sun
+            Body(
+                mass=3.30e23,
+                pos=(69.82e9, 0.0),
+                vel=(0.0, 47.36e3),
+                color="gray",
+                line_color="black",
+            ),  # Mercury
+            Body(
+                mass=4.87e24,
+                pos=(10.89e10, 0.0),
+                vel=(0.0, 35.02e3),
+                color="gray",
+                line_color="black",
+            ),  # Venus
+            Body(
+                mass=5.97e24,
+                pos=(15.21e10, 0.0),
+                vel=(0.0, 29.78e3),
+                color="blue",
+                line_color="dodgerblue",
+            ),  # Earth
+            Body(
+                mass=6.42e23,
+                pos=(24.92e10, 0.0),
+                vel=(0.0, 24.01e3),
+                color="olive",
+                line_color="tan",
+            ),  # Mars
+            Body(
+                mass=1.90e27,
+                pos=(81.66e10, 0.0),
+                vel=(0.0, 13.07e3),
+                color="gray",
+                line_color="black",
+            ),  # Juptier
+            Body(
+                mass=5.68e26,
+                pos=(15.14e11, 0.0),
+                vel=(0.0, 9.68e3),
+                color="gray",
+                line_color="black",
+            ),  # Saturn
+            Body(
+                mass=8.68e25,
+                pos=(30.08e11, 0.0),
+                vel=(0.0, 6.80e3),
+                color="gray",
+                line_color="black",
+            ),  # Uranus
+            Body(
+                mass=1.02e26,
+                pos=(45.37e11, 0.0),
+                vel=(0.0, 5.43e3),
+                color="gray",
+                line_color="black",
+            ),  # Neptune
+        ]
+        G = 6.67408e-11  # Gravitational constant
+        dt = 864000  # 10 days
 
     window = Window(
         objs, G=G, dt=dt, width=WIDTH, height=HEIGHT, obj_size=OBJ_SIZE, scale_coeff=3
     )
     window.show()
     sys.exit(app.exec_())
-
-    # The Solar System
-    # objs = [
-    #     {"mass": 1.99e30, "pos": [0, 0], "vel": [0, 0], "color": "red"},  # Sun
-    #     {
-    #         "mass": 3.30e23,
-    #         "pos": [69.82e9, 0],
-    #         "vel": [0, 47.36e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },  # Mercury
-    #     {
-    #         "mass": 4.87e24,
-    #         "pos": [10.89e10, 0],
-    #         "vel": [0, 35.02e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },  # Venus
-    #     {
-    #         "mass": 5.97e24,
-    #         "pos": [15.21e10, 0],
-    #         "vel": [0, 29.78e3],
-    #         "color": "blue",
-    #         "show_path": False,
-    #         "centered": True,
-    #     },  # Earth
-    #     {
-    #         "mass": 6.42e23,
-    #         "pos": [24.92e10, 0],
-    #         "vel": [0, 24.01e3],
-    #         "color": "olive",
-    #         "line_color": "tan",
-    #     },  # Mars
-    #     {
-    #         "mass": 1.90e27,
-    #         "pos": [81.66e10, 0],
-    #         "vel": [0, 13.07e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },  # Juptier
-    #     {
-    #         "mass": 5.68e26,
-    #         "pos": [15.14e11, 0],
-    #         "vel": [0, 9.68e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },  # Saturn
-    #     {
-    #         "mass": 8.68e25,
-    #         "pos": [30.08e11, 0],
-    #         "vel": [0, 6.80e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },  # Uranus
-    #     {
-    #         "mass": 1.02e26,
-    #         "pos": [45.37e11, 0],
-    #         "vel": [0, 5.43e3],
-    #         "color": "gray",
-    #         "line_color": "black",
-    #     },
-    # ]  # Neptune
-    # G = 6.67408e-11 # Gravitational constant
-    # dt = 864000 # 10 days
