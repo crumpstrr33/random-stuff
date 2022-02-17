@@ -32,12 +32,13 @@ effects of every object on object i. And it is analogous for the y-component
 The simulation is ran in Qt and that's pretty much it!
 """
 import sys
-from typing import Any, Callable, Protocol, Sequence, TypedDict, Union
+from dataclasses import dataclass
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import matplotlib.colors as mpl_colors
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPaintEvent, QPixmap
+from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPaintEvent, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -50,27 +51,15 @@ from PyQt5.QtWidgets import (
 )
 
 
-class BodyBase(TypedDict):
-    """Required values for obj dictionary"""
-
+@dataclass
+class Body:
     mass: float
-    pos: Sequence[float]
-    vel: Sequence[float]
-
-
-class Body(BodyBase, total=False):
-    """Optional vlaues for obj dictionary"""
-
-    color: str
-    show_path: bool
-    centered: bool
-
-
-class ButtonClick(Protocol):
-    """Form of method for button clicks"""
-
-    def __call__(self, attr: str, val: str, *args: Any) -> None:
-        ...
+    pos: Tuple[float, float]
+    vel: Tuple[float, float]
+    color: Optional[str] = None
+    line_color: Optional[str] = None
+    show_path: bool = True
+    centered: bool = False
 
 
 def is_float(element: Any) -> bool:
@@ -113,29 +102,24 @@ class Orbit:
          calculation of the positions and velocities. Lower is more accurate.
     """
 
-    def __init__(self, *objs: Body, G: float, dt: float):
+    def __init__(self, objs: Sequence[Body], G: float, dt: float):
         self.G = G
         self.dt = dt
-        self.offset = [0, 0]
+        self.offset = [0.0, 0.0]
 
         # Index of dicts that is to have orbits centered on
+        self.cinds: Optional[List[int]]
         try:
             self.cinds = [
-                objs.index(obj)
-                for obj in list(filter(lambda x: x["centered"] is True, objs))
+                objs.index(obj) for obj in filter(lambda x: x.centered is True, objs)
             ]
         except IndexError:
             self.cinds = None
 
-        # Turn into numpy arrays with dimension (no. objects, no. dimensions)
-        self.pos, self.vel, self.mass = [], [], []
-        for obj in objs:
-            self.pos.append(obj["pos"])
-            self.vel.append(obj["vel"])
-            self.mass.append(obj["mass"])
-        self.pos = np.array(self.pos, dtype="float64")
-        self.vel = np.array(self.vel, dtype="float64")
-        self.mass = np.array(self.mass)
+        # Arrays with dimension (no. objects, no. dimensions)
+        self.pos = np.array([obj.pos for obj in objs], dtype="float128")
+        self.vel = np.array([obj.vel for obj in objs], dtype="float128")
+        self.mass = np.array([obj.mass for obj in objs])
         self.dim = len(self.pos[0])
 
         # Make sure consistent number of objects between pos and vel
@@ -168,7 +152,7 @@ class Orbit:
         sum is over all of the N objects and r is the euclidean distance between
         the ith and jth object.
         """
-        new_acc = [[]] * self.num_objects
+        new_acc = [[0.0] * self.num_dims] * self.num_objects
         # Iterate through each object
         for oind in range(self.num_objects):
             # Initialize the accelerations for each dimension
@@ -182,7 +166,7 @@ class Orbit:
 
                 # Find r^3 as shown above in the equation
                 dist_cubed = (
-                    np.math.sqrt(
+                    np.sqrt(
                         sum(
                             [
                                 (self.pos[oind][dim] - self.pos[eind][dim]) ** 2
@@ -234,7 +218,7 @@ class Orbit:
                 )
             )
         else:
-            self.offset = self.dim * [0]
+            self.offset = self.dim * [0.0]
 
     def iterate(self) -> None:
         """
@@ -257,7 +241,8 @@ class Picture(QWidget):
 
     def __init__(
         self,
-        *objs: Body,
+        objs: Sequence[Body],
+        default_color: str,
         G: float,
         dt: float,
         width: int,
@@ -267,9 +252,17 @@ class Picture(QWidget):
         parent,
     ):
         super().__init__(parent=parent)
+        # Fill in default colors
+        for obj in objs:
+            if obj.color is None:
+                obj.color = default_color
+            if obj.line_color is None:
+                obj.line_color = obj.color
+        # Used to save previous position tuples to draw next pixel in Background
+        self.orbital_prev: List[Tuple[float, float]] = []
 
         self.foreground = Foreground(
-            *objs,
+            objs,
             G=G,
             dt=dt,
             width=width,
@@ -278,17 +271,15 @@ class Picture(QWidget):
             scale_coeff=scale_coeff,
             parent=self,
         )
-        self.background = Background(width=width, height=height)
+        self.background = Background(width=width, height=height, parent=self)
 
         # Makes a list of the colors for each object
-        self.colors = [obj["color"] for obj in objs]
-        self.line_colors = [obj["line_color"] for obj in objs]
-        self.background.colors = self.line_colors
-        self.foreground.colors = self.colors
+        self.background.colors = [obj.line_color for obj in objs]
+        self.foreground.colors = [obj.color for obj in objs]
 
         # Makes a list of whether or not to show the path for each object
         # Check to make sure every input for `show_path` is either a boolean or an empty string
-        osp = [obj["show_path"] for obj in objs]
+        osp = [obj.show_path for obj in objs]
         if not len(list(filter(lambda x: type(x) == bool, osp))) == len(osp):
             raise Exception("Unknown data type for show_path parameter.")
         self.background.show_paths = osp
@@ -301,7 +292,6 @@ class Picture(QWidget):
     def _multi_update(self) -> None:
         """Moves everything forward"""
         self.foreground.update()
-        self.background.orbital_prev = self.foreground.orbital_prev
         self.background.paintEvent()
         self.update()
 
@@ -325,7 +315,7 @@ class Window(QMainWindow):
 
     def __init__(
         self,
-        *objs: Body,
+        objs: Sequence[Body],
         default_color: str = "black",
         G: float = 1,
         dt: float = 0.00005,
@@ -340,21 +330,9 @@ class Window(QMainWindow):
         self.setWindowTitle("Newtonian Orbital Dynamics")
         self.setGeometry(300, 200, width, height)
 
-        # Fills in the blanks in the list of dict due to default values
-        # `show_path` defaults to `True`, `centered` defaults to `False`
-        # and `color` to `black`
-        objs = [
-            dict(
-                obj,
-                show_path=obj.get("show_path", True),
-                centered=obj.get("centered", False),
-                color=obj.get("color", default_color),
-                line_color=obj.get("line_color", obj.get("color", default_color)),
-            )
-            for obj in objs
-        ]
         self.picture = Picture(
-            *objs,
+            objs,
+            default_color=default_color,
             G=G,
             dt=dt,
             width=width,
@@ -369,11 +347,19 @@ class Window(QMainWindow):
         """
         Menu for the main window.
         """
+        file = self.menuBar().addMenu("File")
+        self.file_pause = file.addAction("Pause Simulation")
+        self.file_pause.triggered.connect(self._toggle_pause)
+        self.file_pause.setShortcut(Qt.Key_Space)
+
         edit = self.menuBar().addMenu("Edit")
         edit_dt = edit.addAction("Change time")
-        edit_G = edit.addAction("Change gravity")
+        edit_dt.setShortcut(QKeySequence("Ctrl+T"))
         edit_dt.triggered.connect(lambda: self._edit_val("dt", "time"))
+        edit_G = edit.addAction("Change gravity")
+        edit_G.setShortcut(QKeySequence("Ctrl+G"))
         edit_G.triggered.connect(lambda: self._edit_val("G", "gravity"))
+        edit_add = edit.addAction("Add Object")
 
     def _edit_val(self, attr: str, name: str) -> None:
         """
@@ -401,40 +387,61 @@ class Window(QMainWindow):
         """
         setattr(self.picture.foreground.orbit, attr, float(new_val))
 
+    def _toggle_pause(self):
+        if self.picture.timer.isActive():
+            self.picture.timer.stop()
+            self.file_pause.setText("Unpause Simulation")
+        else:
+            self.picture.timer.start()
+            self.file_pause.setText("Pause Simulation")
 
-class Popup(QDialog):
+
+class PopupBase(QDialog):
+    def _button_clicked(
+        self,
+        wrapped_cmd: Callable[..., None],
+        wrapped_args: Sequence[Any],
+        checks: Sequence[Tuple[int, Callable[..., bool]]],
+    ) -> None:
+        """
+        When this method is called, the function `wrapped_cmd` will be run with arguments
+        `wrapped_args`. Each element of `checks` is a tuple with an int referring to an
+        element of `wrapped_args` and a function to pass that element to which will return
+        a boolean value. Essentially, you can check specific arguments being passed for specific
+        conditions, e.g. if an argument can be cast into a float.
+        """
+        for check in checks:
+            if not check[1](check[0]):
+                return
+        wrapped_cmd(*wrapped_args)
+        self.close()
+
+
+class Popup(PopupBase):
     def __init__(
         self,
         name: str,
-        button_cmd: Callable[[Window, str, Union[str, float, int]], None],
+        button_cmd: Callable[[str, Union[str, float, int]], None],
         val: float,
         attr: str,
-        parent: Window = None,
+        parent: Window,
     ):
-        super().__init__(parent)
+        super().__init__(parent=parent)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
         self.label = QLabel(f"{name} (Current: {val}): ", self)
         self.label.setAlignment(Qt.AlignCenter)
         self.new_val = QLineEdit(parent=self)
-        self.accept = QPushButton(f"Change")
+        self.accept = QPushButton("Accept")
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.new_val)
         self.layout.addWidget(self.accept)
         self.accept.clicked.connect(
-            lambda: self._button_clicked(button_cmd, [attr, self.new_val.text()], float)
+            lambda: self._button_clicked(
+                button_cmd, [attr, self.new_val.text()], [(1, is_float)]
+            )
         )
-
-    def _button_clicked(
-        self, wrapped_cmd: ButtonClick, wrapped_args: Sequence[str], vtype: type
-    ) -> None:
-        """Wrapper for clicking the Popup button"""
-        if vtype == float:
-            # Check if value can be cast as float
-            if is_float(wrapped_args[1]):
-                wrapped_cmd(*wrapped_args)
-                self.close()
 
 
 class Background(QPixmap):
@@ -445,16 +452,16 @@ class Background(QPixmap):
     n^m points to paint but with this, it's just 2n points.
     """
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, parent: Window):
         QPixmap.__init__(self, width, height)
+        self.parent = parent
         # Background color
         self.fill(QColor(200, 200, 200))
-        self.orbital_prev = []
 
     def paintEvent(self) -> None:
         # QPixmap doesn't have a paintEvent, this is just a mocked-up version
         painter = QPainter(self)
-        for n, orbit in enumerate(self.orbital_prev):
+        for n, orbit in enumerate(self.parent.orbital_prev):
             # Use `False` explicitly sign empty string is considered `True`
             if self.show_paths[n] is not False:
                 color = QColor(mpl_colors.cnames[self.colors[n]])
@@ -483,7 +490,7 @@ class Foreground(QWidget):
 
     def __init__(
         self,
-        *objs: Body,
+        objs: Sequence[Body],
         G: float,
         dt: float,
         height: int,
@@ -500,11 +507,10 @@ class Foreground(QWidget):
         # within longer dimension
         self.min_axis = min(height, width)
         self.obj_size = obj_size
-        self.orbital_prev = []
 
         self.setGeometry(0, 0, width, height)
         # Create class to calculate data for simulation
-        self.orbit = Orbit(*objs, G=G, dt=dt)
+        self.orbit = Orbit(objs, G=G, dt=dt)
         # Scale to normalize distances in the window
         self.scale = scale_coeff * max(np.abs(self.orbit.pos.flatten()))
 
@@ -521,8 +527,7 @@ class Foreground(QWidget):
         Parameters:
         painter - The QPainter object doing the painting on the window.
         """
-        self.orbital_prev = []
-
+        self.parent().orbital_prev = []
         for n, obj in enumerate(self.orbit.pos):
             # Set color for the painter
             color = QColor(mpl_colors.cnames[self.colors[n]])
@@ -534,7 +539,9 @@ class Foreground(QWidget):
             y = self._scale(obj[1], 1)
 
             # Record points to add to bg for path (and centers on circles)
-            self.orbital_prev.append((x + self.obj_size / 2, y + self.obj_size / 2))
+            self.parent().orbital_prev.append(
+                (x + self.obj_size / 2, y + self.obj_size / 2)
+            )
             # Draw circle (ellipse with equal length and width)
             painter.drawEllipse(int(x), int(y), self.obj_size, self.obj_size)
 
@@ -555,46 +562,34 @@ if __name__ == "__main__":
     HEIGHT = int(size.height() / 1.2)
     OBJ_SIZE = 10
     objs = [
-        {
-            "mass": 100.0,
-            "pos": [-0.1, -0.1],
-            "vel": [8, -8],
-            "color": "firebrick",
-            "show_path": False,
-            "centered": True,
-        },
-        {
-            "mass": 100.0,
-            "pos": [0.1, 0.1],
-            "vel": [-8, 8],
-            "color": "indianred",
-            "show_path": False,
-            "centered": True,
-        },
-        {"mass": 0.1, "pos": [0.5, 0.0], "vel": [0, -18], "color": "oldlace"},
-        {
-            "mass": 0.2,
-            "pos": [0.0, 0.6],
-            "vel": [20, 0],
-            "color": "mediumpurple",
-            "centered": False,
-        },
-        {"mass": 1.2, "pos": [1.0, 1.0], "vel": [6, -5], "color": "darkkhaki"},
-        {"mass": 8.2, "pos": [3.2, 3.2], "vel": [2, -5], "color": "green"},
-        {"mass": 3.3, "pos": [-4.1, -3.5], "vel": [-2, 4], "color": "steelblue"},
-        {
-            "mass": 20.5,
-            "pos": [0.0, -2.0],
-            "vel": [-12, -1],
-            "color": "navajowhite",
-            "centered": False,
-        },
+        Body(
+            mass=100.0,
+            pos=(-0.1, -0.1),
+            vel=(8, -8),
+            color="firebrick",
+            show_path=False,
+            centered=True,
+        ),
+        Body(
+            mass=100.0,
+            pos=(0.1, 0.1),
+            vel=(-8, 8),
+            color="indianred",
+            show_path=False,
+            centered=True,
+        ),
+        Body(mass=0.1, pos=(0.5, 0.0), vel=(0, -18), color="oldlace"),
+        Body(mass=0.2, pos=(0.0, 0.6), vel=(20, 0), color="mediumpurple"),
+        Body(mass=1.2, pos=(1.0, 1.0), vel=(6, -5), color="darkkhaki"),
+        Body(mass=8.2, pos=(3.2, 3.2), vel=(2, -5), color="green"),
+        Body(mass=3.3, pos=(-4.1, -3.5), vel=(-2, 4), color="steelblue"),
+        Body(mass=20.5, pos=(0.0, -2.0), vel=(-12, -1), color="navajowhite"),
     ]
     G = 1
     dt = 0.0003
 
     window = Window(
-        *objs, G=G, dt=dt, width=WIDTH, height=HEIGHT, obj_size=OBJ_SIZE, scale_coeff=3
+        objs, G=G, dt=dt, width=WIDTH, height=HEIGHT, obj_size=OBJ_SIZE, scale_coeff=3
     )
     window.show()
     sys.exit(app.exec_())
