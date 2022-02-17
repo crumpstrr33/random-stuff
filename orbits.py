@@ -60,7 +60,7 @@ class Body:
     mass: float
     pos: Tuple[float, float]
     vel: Tuple[float, float]
-    color: Optional[str] = None
+    body_color: Optional[str] = None
     line_color: Optional[str] = None
     show_path: bool = True
     centered: bool = False
@@ -86,7 +86,7 @@ class Orbit:
            masses, velocities and positions and other details:
 
                 {'mass': 10, 'pos': [1, 5], 'vel':[3, 0], 'show_path':True,
-                 'centered':True, 'color': 'green', 'line_color': blue'}
+                 'centered':True, 'body_color': 'green', 'line_color': blue'}
 
             mass - The mass of the object
             pos - The (x,y) starting position of the object
@@ -96,8 +96,8 @@ class Orbit:
             centered - (default False) Will center the image on the object, i.e.
                 the object won't move. If more than one object has this keyword
                 set to True, then it will be centered on their average position
-            color - (default black) The color of the ball
-            line_color - (default `color`) The color of the path line, defaults
+            body_color - (default black) The color of the body
+            line_color - (default `body_color`) The color of the path line, defaults
                 to whatever color the ball is
 
     G - (default 1) The value for the graviational constant found in Newton's
@@ -298,7 +298,7 @@ class Window(QMainWindow):
         attribute is given in the QLineEdit `self.new_val` of the
         Popup class. Currently being used for `dt` and `G`.
         """
-        popup = Popup(
+        popup = ChangeValue(
             f"New {name.capitalize()} Value",
             self._change_val,
             val=getattr(self.picture.foreground.orbit, attr),
@@ -349,10 +349,10 @@ class Picture(QWidget):
         super().__init__(parent=parent)
         # Fill in default colors
         for obj in objs:
-            if obj.color is None:
-                obj.color = default_color
+            if obj.body_color is None:
+                obj.body_color = default_color
             if obj.line_color is None:
-                obj.line_color = obj.color
+                obj.line_color = obj.body_color
         # Used to save previous position tuples to draw next pixel in Background
         self.orbital_prev: List[Tuple[float, float]] = []
 
@@ -369,8 +369,8 @@ class Picture(QWidget):
         self.background = Background(width=width, height=height, parent=self)
 
         # Makes a list of the colors for each object
-        self.background.colors = [obj.line_color for obj in objs]
-        self.foreground.colors = [obj.color for obj in objs]
+        self.background.line_colors = [obj.line_color for obj in objs]
+        self.foreground.body_colors = [obj.body_color for obj in objs]
 
         # Makes a list of whether or not to show the path for each object
         # Check to make sure every input for `show_path` is either a boolean or an empty string
@@ -417,7 +417,7 @@ class Background(QPixmap):
         for n, orbit in enumerate(self.parent.orbital_prev):
             # Use `False` explicitly sign empty string is considered `True`
             if self.show_paths[n] is not False:
-                color = QColor(mpl_colors.cnames[self.colors[n]])
+                color = QColor(mpl_colors.cnames[self.line_colors[n]])
                 painter.setPen(color)
                 painter.drawPoint(*[int(x) for x in orbit])
         painter.end()
@@ -482,10 +482,10 @@ class Foreground(QWidget):
         """
         self.parent().orbital_prev = []
         for n, obj in enumerate(self.orbit.pos):
-            # Set color for the painter
-            color = QColor(mpl_colors.cnames[self.colors[n]])
-            painter.setPen(color)
-            painter.setBrush(color)
+            # Set body_color for the painter
+            body_color = QColor(mpl_colors.cnames[self.body_colors[n]])
+            painter.setPen(body_color)
+            painter.setBrush(body_color)
 
             # Scale x and y distances by the size of the window with magic
             x = self._scale(obj[0], 0)
@@ -528,7 +528,7 @@ class PopupBase(QDialog):
         self.close()
 
 
-class Popup(PopupBase):
+class ChangeValue(PopupBase):
     def __init__(
         self,
         name: str,
@@ -562,7 +562,7 @@ if __name__ == "__main__":
     WIDTH = int(size.width() / 1.2)
     HEIGHT = int(size.height() / 1.2)
     OBJ_SIZE = 10
-    IS_SOLARSYSTEM = True
+    IS_SOLARSYSTEM = False
 
     if not IS_SOLARSYSTEM:
         objs = [
@@ -570,7 +570,7 @@ if __name__ == "__main__":
                 mass=100.0,
                 pos=(-0.1, -0.1),
                 vel=(8, -8),
-                color="firebrick",
+                body_color="firebrick",
                 show_path=False,
                 centered=True,
             ),
@@ -578,77 +578,77 @@ if __name__ == "__main__":
                 mass=100.0,
                 pos=(0.1, 0.1),
                 vel=(-8, 8),
-                color="indianred",
+                body_color="indianred",
                 show_path=False,
                 centered=True,
             ),
-            Body(mass=0.1, pos=(0.5, 0.0), vel=(0, -18), color="oldlace"),
-            Body(mass=0.2, pos=(0.0, 0.6), vel=(20, 0), color="mediumpurple"),
-            Body(mass=1.2, pos=(1.0, 1.0), vel=(6, -5), color="darkkhaki"),
-            Body(mass=8.2, pos=(3.2, 3.2), vel=(2, -5), color="green"),
-            Body(mass=3.3, pos=(-4.1, -3.5), vel=(-2, 4), color="steelblue"),
-            Body(mass=20.5, pos=(0.0, -2.0), vel=(-12, -1), color="navajowhite"),
+            Body(mass=0.1, pos=(0.5, 0.0), vel=(0, -18), body_color="oldlace"),
+            Body(mass=0.2, pos=(0.0, 0.6), vel=(20, 0), body_color="mediumpurple"),
+            Body(mass=1.2, pos=(1.0, 1.0), vel=(6, -5), body_color="darkkhaki"),
+            Body(mass=8.2, pos=(3.2, 3.2), vel=(2, -5), body_color="green"),
+            Body(mass=3.3, pos=(-4.1, -3.5), vel=(-2, 4), body_color="steelblue"),
+            Body(mass=20.5, pos=(0.0, -2.0), vel=(-12, -1), body_color="navajowhite"),
         ]
         G = 1
         dt = 0.0003
     else:
         # The Solar System
         objs = [
-            Body(mass=1.99e30, pos=(0.0, 0.0), vel=(0.0, 0.0), color="red"),  # Sun
+            Body(mass=1.99e30, pos=(0.0, 0.0), vel=(0.0, 0.0), body_color="red"),  # Sun
             Body(
                 mass=3.30e23,
                 pos=(69.82e9, 0.0),
                 vel=(0.0, 47.36e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Mercury
             Body(
                 mass=4.87e24,
                 pos=(10.89e10, 0.0),
                 vel=(0.0, 35.02e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Venus
             Body(
                 mass=5.97e24,
                 pos=(15.21e10, 0.0),
                 vel=(0.0, 29.78e3),
-                color="blue",
+                body_color="blue",
                 line_color="dodgerblue",
             ),  # Earth
             Body(
                 mass=6.42e23,
                 pos=(24.92e10, 0.0),
                 vel=(0.0, 24.01e3),
-                color="olive",
+                body_color="olive",
                 line_color="tan",
             ),  # Mars
             Body(
                 mass=1.90e27,
                 pos=(81.66e10, 0.0),
                 vel=(0.0, 13.07e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Juptier
             Body(
                 mass=5.68e26,
                 pos=(15.14e11, 0.0),
                 vel=(0.0, 9.68e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Saturn
             Body(
                 mass=8.68e25,
                 pos=(30.08e11, 0.0),
                 vel=(0.0, 6.80e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Uranus
             Body(
                 mass=1.02e26,
                 pos=(45.37e11, 0.0),
                 vel=(0.0, 5.43e3),
-                color="gray",
+                body_color="gray",
                 line_color="black",
             ),  # Neptune
         ]
