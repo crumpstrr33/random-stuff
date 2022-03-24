@@ -31,6 +31,8 @@ effects of every object on object i. And it is analogous for the y-component
 
 The simulation is ran in Qt and that's pretty much it!
 """
+
+
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
@@ -42,6 +44,7 @@ from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPaintEvent, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -258,6 +261,9 @@ class Window(QMainWindow):
         self._create_menubar()
         self.setWindowTitle("Newtonian Orbital Dynamics")
         self.setGeometry(300, 200, width, height)
+        self._place_new_body = False
+        self.width = width
+        self.height = height
 
         self.picture = Picture(
             objs,
@@ -288,7 +294,9 @@ class Window(QMainWindow):
         edit_G = edit.addAction("Change gravity")
         edit_G.setShortcut(QKeySequence("Ctrl+G"))
         edit_G.triggered.connect(lambda: self._edit_val("G", "gravity"))
-        edit_add = edit.addAction("Add Object")
+        edit_add = edit.addAction("Add Body")
+        edit_add.setShortcut(QKeySequence("Ctrl+A"))
+        edit_add.triggered.connect(self._add_body)
 
     def _edit_val(self, attr: str, name: str) -> None:
         """
@@ -316,13 +324,61 @@ class Window(QMainWindow):
         """
         setattr(self.picture.foreground.orbit, attr, float(new_val))
 
-    def _toggle_pause(self):
+    def _toggle_pause(self) -> None:
+        """
+        Pause and unpause the simulation.
+        """
         if self.picture.timer.isActive():
             self.picture.timer.stop()
             self.file_pause.setText("Unpause Simulation")
         else:
             self.picture.timer.start()
             self.file_pause.setText("Pause Simulation")
+
+    def _add_body(self) -> None:
+        """
+        Places a new body into the simulation.
+        """
+        popup = AddBody(self._setup_new_body_placement, self)
+        popup.setGeometry(350, 250, 400, 300)
+        popup.show()
+
+    def _setup_new_body_placement(self, vel: Tuple[float], mass: float) -> None:
+        """
+        Records info for new body from popup and primes next mouse click to place.
+        """
+        self.new_obj_vel = vel
+        self.new_obj_mass = mass
+        self._place_new_body = True
+
+    def mousePressEvent(self, evt):
+        """
+        Place new body on mouse down press if `self._place_new_body=True`.
+        """
+        if self._place_new_body:
+            new_obj_pos = (evt.x(), evt.y())
+            self._place_new_body = False
+
+            foreground = self.picture.foreground
+            background = self.picture.background
+            orbit = foreground.orbit
+
+            # Add new info
+            foreground.body_colors.append("black")
+            background.line_colors.append("black")
+            background.show_paths.append(False)
+            orbit.vel = np.append(orbit.vel, [self.new_obj_vel], axis=0)
+            orbit.mass = np.append(orbit.mass, self.new_obj_mass)
+            orbit.num_objects += 1
+
+            # Scale from pixel coordinates to object coordinates
+            x = foreground._inverse_scale(new_obj_pos[0], 0, 1.01)
+            y = foreground._inverse_scale(new_obj_pos[1], 1, 1.06)
+            orbit.pos = np.append(orbit.pos, [[x, y]], axis=0)
+
+            # Remove these variables
+            del self.new_obj_vel
+            del self.new_obj_mass
 
 
 class Picture(QWidget):
@@ -486,7 +542,6 @@ class Foreground(QWidget):
             body_color = QColor(mpl_colors.cnames[self.body_colors[n]])
             painter.setPen(body_color)
             painter.setBrush(body_color)
-
             # Scale x and y distances by the size of the window with magic
             x = self._scale(obj[0], 0)
             y = self._scale(obj[1], 1)
@@ -498,12 +553,30 @@ class Foreground(QWidget):
             # Draw circle (ellipse with equal length and width)
             painter.drawEllipse(int(x), int(y), self.obj_size, self.obj_size)
 
-    def _scale(self, obj, coord):
-        """For `coord`, 0 is x and 1 is y"""
+    def _scale(self, coord_val: float, coord_ind: int) -> float:
+        """
+        For `coord_ind`, 0 is x and 1 is y. Scales from relative coordinates given in the input
+        to pixel coordinates of the window. Keeps the window square, hence using `min_axis`
+        """
+        return ((coord_val - self.orbit.offset[coord_ind]) / self.scale) * (
+            self.min_axis / 2 - 1
+        ) + {0: self.width, 1: self.height}[coord_ind] / 2
+
+    def _inverse_scale(
+        self, pixel_val: float, coord_ind: int, offset_factor: float = 1
+    ) -> float:
+        """
+        Inverse of `_scale`. Uses for adding a new body. `offset_factor` will offset
+        the value of `pixel_val` by a percentage of the width or height.
+        """
         return (
-            ((obj - self.orbit.offset[coord]) / self.scale) * (self.min_axis / 2 - 1)
-            + ({0: self.width, 1: self.height}[coord] - self.min_axis) / 2
-            + self.min_axis / 2
+            self.scale
+            * (
+                2 * pixel_val
+                - offset_factor * {0: self.width, 1: self.height}[coord_ind]
+            )
+            / (self.min_axis - 2)
+            + self.orbit.offset[coord_ind]
         )
 
 
@@ -553,6 +626,47 @@ class ChangeValue(PopupBase):
                 button_cmd, [attr, self.new_val.text()], [(1, is_float)]
             )
         )
+
+
+class AddBody(QDialog):
+    def __init__(self, button_cmd: Callable[..., None], parent: Window) -> None:
+        super().__init__(parent)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        mass_row = QHBoxLayout()
+        mass_label = QLabel("Mass:", self)
+        self.mass_val = QLineEdit(parent=self)
+        mass_row.addWidget(mass_label)
+        mass_row.addWidget(self.mass_val)
+        vel_row = QHBoxLayout()
+        vel_label = QLabel("Velocity:", self)
+        velx_label = QLabel("x:", self)
+        self.velx_val = QLineEdit(parent=self)
+        vely_label = QLabel("y:", self)
+        self.vely_val = QLineEdit(parent=self)
+        vel_row.addWidget(vel_label)
+        vel_row.addWidget(velx_label)
+        vel_row.addWidget(self.velx_val)
+        vel_row.addWidget(vely_label)
+        vel_row.addWidget(self.vely_val)
+        self.accept = QPushButton("Place")
+        self.accept.clicked.connect(lambda: self._button_clicked(button_cmd))
+
+        self.layout.addLayout(mass_row)
+        self.layout.addLayout(vel_row)
+        self.layout.addWidget(self.accept)
+
+    def _button_clicked(self, button_cmd: Callable[..., Any]) -> None:
+        # Don't do anything if valid numbers aren't entered.
+        try:
+            button_cmd(
+                (float(self.velx_val.text()), -float(self.vely_val.text())),
+                float(self.mass_val.text()),
+            )
+            self.close()
+        except ValueError:
+            pass
 
 
 if __name__ == "__main__":
